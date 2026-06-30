@@ -10,7 +10,7 @@ ServerApp uses `WatermarkedFedAvg` (extends `FedAvg`); ClientApp runs train/eval
 - `pytorchexample/task.py` — model (`Net` CNN), data loading, train/test
 - `pytorchexample/server_app.py` — `ServerApp` with `WatermarkedFedAvg` strategy
 - `pytorchexample/client_app.py` — `ClientApp` with `@app.train()` and `@app.evaluate()`
-- `pytorchexample/watermark.py` — `UchidaWatermark` class (embed + BER computation on `fc3.weight`)
+- `pytorchexample/watermark.py` — `UchidaWatermark` class (embed + BER computation on `conv2.weight`)
 - `pytorchexample/watermarked_strategy.py` — `WatermarkedFedAvg` (logs per-client watermark BER each round)
 - `pyproject.toml` — dependencies, Flower config, default run config
 

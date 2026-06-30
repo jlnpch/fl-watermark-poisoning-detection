@@ -4,7 +4,7 @@ import torch
 
 
 class UchidaWatermark:
-    def __init__(self, message="uchida", num_bits=64, layer_name="fc3.weight", seed=42):
+    def __init__(self, message="uchida", num_bits=64, layer_name="conv2.weight", seed=42):
         self.layer_name = layer_name
         self.num_bits = num_bits
         self.seed = seed
