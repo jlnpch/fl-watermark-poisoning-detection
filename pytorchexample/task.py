@@ -63,6 +63,14 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int):
     return trainloader, testloader
 
 
+def load_server_pretrain_data(fraction=0.1, batch_size=64):
+    """Load a fraction of the CIFAR-10 training set for server-side pretraining."""
+    pct = int(fraction * 100)
+    dataset = load_dataset("uoft-cs/cifar10", split=f"train[:{pct}%]")
+    dataset = dataset.with_format("torch").with_transform(apply_transforms)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+
 def load_centralized_dataset():
     """Load test set and return dataloader."""
     # Load entire test set
@@ -106,3 +114,26 @@ def test(net, testloader, device):
     accuracy = correct / len(testloader.dataset)
     loss = loss / len(testloader)
     return loss, accuracy
+
+
+def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01):
+    """Pretrain the model with task loss + watermark regularization."""
+    net.to(device)
+    criterion = torch.nn.CrossEntropyLoss().to(device)
+    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
+    net.train()
+
+    for _ in range(epochs):
+        for batch in trainloader:
+            images = batch["img"].to(device)
+            labels = batch["label"].to(device)
+
+            optimizer.zero_grad()
+            outputs = net(images)
+            task_loss = criterion(outputs, labels)
+
+            wm_loss = watermark.regularization_loss(net)
+            loss = task_loss + lambda_reg * wm_loss
+
+            loss.backward()
+            optimizer.step()

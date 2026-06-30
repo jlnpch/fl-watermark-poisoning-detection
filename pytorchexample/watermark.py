@@ -28,6 +28,9 @@ class UchidaWatermark:
         rng = torch.Generator()
         rng.manual_seed(self.seed)
         self.P = torch.randn((self.num_bits, self.num_params), generator=rng)
+        self.P = self.P.to(layer.device)
+        self.b = self.b.to(layer.device)
+        self.b_target = self.b_target.to(layer.device)
 
     def embed(self, model, strength=1.0):
         if self.P is None:
@@ -42,6 +45,15 @@ class UchidaWatermark:
         delta_W = self.P.T @ x
 
         layer.data += strength * delta_W.reshape(layer.data.shape)
+
+    def regularization_loss(self, model):
+        if self.P is None:
+            self._init_projection(model)
+
+        layer = dict(model.named_parameters())[self.layer_name]
+        W = layer.flatten()
+        z = self.P @ W
+        return torch.mean((z - self.b_target) ** 2)
 
     def compute_ber(self, model):
         if self.P is None:

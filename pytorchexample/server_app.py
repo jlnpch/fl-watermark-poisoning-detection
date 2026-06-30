@@ -7,7 +7,9 @@ from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.common.logger import log
 from flwr.serverapp import Grid, ServerApp
 
-from pytorchexample.task import Net, load_centralized_dataset, test
+from pytorchexample.task import Net, load_centralized_dataset, load_server_pretrain_data
+from pytorchexample.task import pretrain_with_watermark as server_pretrain
+from pytorchexample.task import test
 from pytorchexample.watermark import UchidaWatermark
 from pytorchexample.watermarked_strategy import WatermarkedFedAvg
 
@@ -25,13 +27,23 @@ def main(grid: Grid, context: Context) -> None:
     lr: float = context.run_config["learning-rate"]
     wm_message: str = context.run_config["watermark-message"]
     wm_bits: int = context.run_config["watermark-num-bits"]
-    wm_strength: float = context.run_config["watermark-strength"]
+    wm_lambda: float = context.run_config["watermark-lambda"]
+    pt_fraction: float = context.run_config["pretrain-fraction"]
+    pt_epochs: int = context.run_config["pretrain-epochs"]
 
-    # Load global model and embed watermark
+    # Server-side pretraining with watermark regularization
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     watermark = UchidaWatermark(message=wm_message, num_bits=wm_bits)
     global_model = Net()
-    watermark.embed(global_model, strength=wm_strength)
-    log(INFO, "Watermark embedded (strength=%.1f): BER = %.4f", wm_strength, watermark.compute_ber(global_model))
+    global_model.to(device)
+
+    log(INFO, "Loading %.0f%% of CIFAR-10 training set for server pretraining...", pt_fraction * 100)
+    pretrain_loader = load_server_pretrain_data(fraction=pt_fraction, batch_size=64)
+
+    log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs)...", wm_lambda, pt_epochs)
+    server_pretrain(global_model, pretrain_loader, watermark, pt_epochs, lr, device, lambda_reg=wm_lambda)
+
+    log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", watermark.compute_ber(global_model), 0.0)
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize WatermarkedFedAvg strategy

@@ -16,14 +16,17 @@ ServerApp uses `WatermarkedFedAvg` (extends `FedAvg`); ClientApp runs train/eval
 
 ## Watermark
 
-Uchida-style watermark embedded **before** FL starts (via direct projection onto `fc3.weight`).  
+Uchida-style watermark embedded **before** FL starts via server-side pretraining on a fraction of CIFAR-10 training data with combined loss: `L = L_task + λ·||P·W − b||²`.  
+
 Each round, per-client `watermark_ber` is logged server-side to track watermark degradation.  
 No regularization applied during client training — pure observation.
 
 Config (all overridable via `--run-config`):
 - `watermark-message` (default `"uchida"`) — seed string for watermark bits
 - `watermark-num-bits` (default `64`) — watermark length
-- `watermark-strength` (default `3.0`) — ΔW scaling factor (higher = more robust)
+- `watermark-lambda` (default `0.01`) — watermark regularization weight during server pretraining
+- `pretrain-fraction` (default `0.1`) — fraction of CIFAR-10 training data used by server for pretraining
+- `pretrain-epochs` (default `5`) — number of server pretraining epochs
 
 ## Commands
 
