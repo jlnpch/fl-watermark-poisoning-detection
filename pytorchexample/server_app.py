@@ -25,12 +25,13 @@ def main(grid: Grid, context: Context) -> None:
     lr: float = context.run_config["learning-rate"]
     wm_message: str = context.run_config["watermark-message"]
     wm_bits: int = context.run_config["watermark-num-bits"]
+    wm_strength: float = context.run_config["watermark-strength"]
 
     # Load global model and embed watermark
     watermark = UchidaWatermark(message=wm_message, num_bits=wm_bits)
     global_model = Net()
-    watermark.embed(global_model)
-    log(INFO, "Watermark embedded: BER = %.4f", watermark.compute_ber(global_model))
+    watermark.embed(global_model, strength=wm_strength)
+    log(INFO, "Watermark embedded (strength=%.1f): BER = %.4f", wm_strength, watermark.compute_ber(global_model))
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize WatermarkedFedAvg strategy

@@ -4,7 +4,7 @@ import torch
 
 
 class UchidaWatermark:
-    def __init__(self, message="uchida", num_bits=64, layer_name="conv2.weight", seed=42):
+    def __init__(self, message="uchida", num_bits=64, layer_name="fc3.weight", seed=42):
         self.layer_name = layer_name
         self.num_bits = num_bits
         self.seed = seed
@@ -29,7 +29,7 @@ class UchidaWatermark:
         rng.manual_seed(self.seed)
         self.P = torch.randn((self.num_bits, self.num_params), generator=rng)
 
-    def embed(self, model):
+    def embed(self, model, strength=1.0):
         if self.P is None:
             self._init_projection(model)
 
@@ -41,7 +41,7 @@ class UchidaWatermark:
         x = torch.linalg.solve(P_Pt, self.b_target - z)
         delta_W = self.P.T @ x
 
-        layer.data += delta_W.reshape(layer.data.shape)
+        layer.data += strength * delta_W.reshape(layer.data.shape)
 
     def compute_ber(self, model):
         if self.P is None:

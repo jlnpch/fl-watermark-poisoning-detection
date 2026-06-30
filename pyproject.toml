@@ -29,9 +29,10 @@ clientapp = "pytorchexample.client_app:app"
 [tool.flwr.app.config]
 num-server-rounds = 3
 fraction-evaluate = 1.0
-local-epochs = 1
+local-epochs = 2
 learning-rate = 0.1
 batch-size = 32
 save-model = false
 watermark-message = "uchida"
 watermark-num-bits = 64
+watermark-strength = 1.0
