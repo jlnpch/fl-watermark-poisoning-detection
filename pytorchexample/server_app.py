@@ -1,11 +1,15 @@
 """pytorchexample: A Flower / PyTorch app."""
 
+from logging import INFO
+
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
+from flwr.common.logger import log
 from flwr.serverapp import Grid, ServerApp
-from flwr.serverapp.strategy import FedAvg
 
 from pytorchexample.task import Net, load_centralized_dataset, test
+from pytorchexample.watermark import UchidaWatermark
+from pytorchexample.watermarked_strategy import WatermarkedFedAvg
 
 # Create ServerApp
 app = ServerApp()
@@ -19,13 +23,18 @@ def main(grid: Grid, context: Context) -> None:
     fraction_evaluate: float = context.run_config["fraction-evaluate"]
     num_rounds: int = context.run_config["num-server-rounds"]
     lr: float = context.run_config["learning-rate"]
+    wm_message: str = context.run_config["watermark-message"]
+    wm_bits: int = context.run_config["watermark-num-bits"]
 
-    # Load global model
+    # Load global model and embed watermark
+    watermark = UchidaWatermark(message=wm_message, num_bits=wm_bits)
     global_model = Net()
+    watermark.embed(global_model)
+    log(INFO, "Watermark embedded: BER = %.4f", watermark.compute_ber(global_model))
     arrays = ArrayRecord(global_model.state_dict())
 
-    # Initialize FedAvg strategy
-    strategy = FedAvg(fraction_evaluate=fraction_evaluate)
+    # Initialize WatermarkedFedAvg strategy
+    strategy = WatermarkedFedAvg(fraction_evaluate=fraction_evaluate)
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(

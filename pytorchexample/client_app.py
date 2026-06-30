@@ -7,6 +7,7 @@ from flwr.clientapp import ClientApp
 from pytorchexample.task import Net, load_data
 from pytorchexample.task import test as test_fn
 from pytorchexample.task import train as train_fn
+from pytorchexample.watermark import UchidaWatermark
 
 # Flower ClientApp
 app = ClientApp()
@@ -37,10 +38,18 @@ def train(msg: Message, context: Context):
         device,
     )
 
+    # Compute watermark BER after local training
+    watermark = UchidaWatermark(
+        message=context.run_config["watermark-message"],
+        num_bits=context.run_config["watermark-num-bits"],
+    )
+    ber = watermark.compute_ber(model)
+
     # Construct and return reply Message
     model_record = ArrayRecord(model.state_dict())
     metrics = {
         "train_loss": train_loss,
+        "watermark_ber": ber,
         "num-examples": len(trainloader.dataset),
     }
     metric_record = MetricRecord(metrics)
