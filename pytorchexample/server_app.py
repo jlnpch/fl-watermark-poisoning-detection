@@ -30,6 +30,8 @@ def main(grid: Grid, context: Context) -> None:
     wm_lambda: float = context.run_config["watermark-lambda"]
     pt_fraction: float = context.run_config["pretrain-fraction"]
     pt_epochs: int = context.run_config["pretrain-epochs"]
+    es_patience: int = context.run_config["early-stopping-patience"]
+    es_delta: float = context.run_config["early-stopping-delta"]
 
     # Server-side pretraining with watermark regularization
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -47,7 +49,11 @@ def main(grid: Grid, context: Context) -> None:
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize WatermarkedFedAvg strategy
-    strategy = WatermarkedFedAvg(fraction_evaluate=fraction_evaluate)
+    strategy = WatermarkedFedAvg(
+        fraction_evaluate=fraction_evaluate,
+        early_stopping_patience=es_patience,
+        early_stopping_delta=es_delta,
+    )
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(

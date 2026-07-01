@@ -27,7 +27,7 @@ serverapp = "pytorchexample.server_app:app"
 clientapp = "pytorchexample.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 3
+num-server-rounds = 100
 fraction-evaluate = 1.0
 local-epochs = 1
 learning-rate = 0.1
@@ -38,3 +38,5 @@ watermark-num-bits = 64
 watermark-lambda = 0.01
 pretrain-fraction = 0.1
 pretrain-epochs = 10
+early-stopping-patience = 5
+early-stopping-delta = 0.002
