@@ -40,3 +40,7 @@ pretrain-fraction = 0.1
 pretrain-epochs = 10
 early-stopping-patience = 5
 early-stopping-delta = 0.002
+attacker-fraction = 0.1
+attacker-label-shift = 1
+attacker-gradient-scale = 1.0
+max-trusted-ber = 0.3

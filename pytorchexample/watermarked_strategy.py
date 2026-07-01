@@ -13,21 +13,35 @@ class WatermarkedFedAvg(FedAvg):
         self,
         early_stopping_patience=0,
         early_stopping_delta=0.0,
+        max_trusted_ber=1.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.early_stopping_patience = early_stopping_patience
         self.early_stopping_delta = early_stopping_delta
+        self.max_trusted_ber = max_trusted_ber
 
     def aggregate_train(self, server_round, replies):
+        excluded = 0
+        trusted = []
         for i, msg in enumerate(replies):
-            if not msg.has_error():
-                metrics = msg.content["metrics"]
-                ber = metrics.get("watermark_ber", None)
-                if ber is not None:
-                    log(INFO, "  └─ Client %d: watermark_ber = %.4f", i, ber)
+            if msg.has_error():
+                trusted.append(msg)
+                continue
+            metrics = msg.content["metrics"]
+            ber = metrics.get("watermark_ber", None)
+            if ber is not None:
+                log(INFO, "  └─ Client %d: watermark_ber = %.4f", i, ber)
+            if ber is not None and ber > self.max_trusted_ber:
+                log(INFO, "  └─ Client %d: EXCLUDED (BER %.4f > %.4f)", i, ber, self.max_trusted_ber)
+                excluded += 1
+            else:
+                trusted.append(msg)
 
-        return super().aggregate_train(server_round, replies)
+        if excluded:
+            log(INFO, "  └─ Excluded %d/%d clients (BER > %.4f)", excluded, len(replies), self.max_trusted_ber)
+
+        return super().aggregate_train(server_round, trusted)
 
     def start(
         self,

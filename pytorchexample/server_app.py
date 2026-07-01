@@ -32,6 +32,7 @@ def main(grid: Grid, context: Context) -> None:
     pt_epochs: int = context.run_config["pretrain-epochs"]
     es_patience: int = context.run_config["early-stopping-patience"]
     es_delta: float = context.run_config["early-stopping-delta"]
+    max_ber: float = context.run_config["max-trusted-ber"]
 
     # Server-side pretraining with watermark regularization
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -46,6 +47,15 @@ def main(grid: Grid, context: Context) -> None:
     server_pretrain(global_model, pretrain_loader, watermark, pt_epochs, lr, device, lambda_reg=wm_lambda)
 
     log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", watermark.compute_ber(global_model), 0.0)
+
+    # Attacker config
+    attacker_frac = context.run_config.get("attacker-fraction", 0.0)
+    if attacker_frac > 0:
+        log(INFO, "Attack config: fraction=%.1f, label_shift=%d, gradient_scale=%.1f, max_trusted_ber=%.2f",
+            attacker_frac,
+            context.run_config.get("attacker-label-shift", 1),
+            context.run_config.get("attacker-gradient-scale", 1.0),
+            max_ber)
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize WatermarkedFedAvg strategy
@@ -53,6 +63,7 @@ def main(grid: Grid, context: Context) -> None:
         fraction_evaluate=fraction_evaluate,
         early_stopping_patience=es_patience,
         early_stopping_delta=es_delta,
+        max_trusted_ber=max_ber,
     )
 
     # Start strategy, run FedAvg for `num_rounds`

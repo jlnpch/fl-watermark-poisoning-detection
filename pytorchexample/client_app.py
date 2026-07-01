@@ -29,6 +29,12 @@ def train(msg: Message, context: Context):
     batch_size = context.run_config["batch-size"]
     trainloader, _ = load_data(partition_id, num_partitions, batch_size)
 
+    # Attacker logic
+    attacker_fraction = context.run_config.get("attacker-fraction", 0.0)
+    is_attacker = partition_id < int(num_partitions * attacker_fraction)
+    label_shift = context.run_config.get("attacker-label-shift", 0) if is_attacker else 0
+    gradient_scale = context.run_config.get("attacker-gradient-scale", 1.0) if is_attacker else 1.0
+
     # Call the training function
     train_loss = train_fn(
         model,
@@ -36,6 +42,8 @@ def train(msg: Message, context: Context):
         context.run_config["local-epochs"],
         msg.content["config"]["lr"],
         device,
+        label_shift=label_shift,
+        gradient_scale=gradient_scale,
     )
 
     # Compute watermark BER after local training

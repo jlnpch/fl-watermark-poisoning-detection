@@ -79,7 +79,7 @@ def load_centralized_dataset():
     return DataLoader(dataset, batch_size=128)
 
 
-def train(net, trainloader, epochs, lr, device):
+def train(net, trainloader, epochs, lr, device, label_shift=0, gradient_scale=1.0):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -90,9 +90,15 @@ def train(net, trainloader, epochs, lr, device):
         for batch in trainloader:
             images = batch["img"].to(device)
             labels = batch["label"].to(device)
+            if label_shift:
+                labels = (labels + label_shift) % 10
             optimizer.zero_grad()
             loss = criterion(net(images), labels)
             loss.backward()
+            if gradient_scale != 1.0:
+                for p in net.parameters():
+                    if p.grad is not None:
+                        p.grad *= gradient_scale
             optimizer.step()
             running_loss += loss.item()
     avg_trainloss = running_loss / (epochs * len(trainloader))
