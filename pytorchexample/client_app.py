@@ -58,6 +58,7 @@ def train(msg: Message, context: Context):
     metrics = {
         "train_loss": train_loss,
         "watermark_ber": ber,
+        "partition_id": partition_id,
         "num-examples": len(trainloader.dataset),
     }
     metric_record = MetricRecord(metrics)

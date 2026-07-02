@@ -14,32 +14,45 @@ class WatermarkedFedAvg(FedAvg):
         early_stopping_patience=0,
         early_stopping_delta=0.0,
         max_trusted_ber=1.0,
+        attacker_fraction=0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.early_stopping_patience = early_stopping_patience
         self.early_stopping_delta = early_stopping_delta
         self.max_trusted_ber = max_trusted_ber
+        self.attacker_fraction = attacker_fraction
 
     def aggregate_train(self, server_round, replies):
-        excluded = 0
+        tp = fp = excluded = 0
         trusted = []
-        for i, msg in enumerate(replies):
+        n = len(replies)
+        for msg in replies:
             if msg.has_error():
                 trusted.append(msg)
                 continue
             metrics = msg.content["metrics"]
             ber = metrics.get("watermark_ber", None)
+            pid = metrics.get("partition_id", -1)
+            is_attacker = self.attacker_fraction > 0 and pid < int(n * self.attacker_fraction)
+
+            tag = " (attacker)" if is_attacker else ""
             if ber is not None:
-                log(INFO, "  └─ Client %d: watermark_ber = %.4f", i, ber)
+                log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s", pid, ber, tag)
+
             if ber is not None and ber > self.max_trusted_ber:
-                log(INFO, "  └─ Client %d: EXCLUDED (BER %.4f > %.4f)", i, ber, self.max_trusted_ber)
+                log(INFO, "  └─ Partition %d: EXCLUDED (BER %.4f > %.4f)", pid, ber, self.max_trusted_ber)
                 excluded += 1
+                if is_attacker:
+                    tp += 1
+                else:
+                    fp += 1
             else:
                 trusted.append(msg)
 
         if excluded:
-            log(INFO, "  └─ Excluded %d/%d clients (BER > %.4f)", excluded, len(replies), self.max_trusted_ber)
+            log(INFO, "  └─ Excluded %d/%d clients (TP=%d, FP=%d, BER>%.4f)",
+                excluded, n, tp, fp, self.max_trusted_ber)
 
         return super().aggregate_train(server_round, trusted)
 

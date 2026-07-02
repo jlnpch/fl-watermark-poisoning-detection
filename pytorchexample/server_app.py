@@ -64,6 +64,7 @@ def main(grid: Grid, context: Context) -> None:
         early_stopping_patience=es_patience,
         early_stopping_delta=es_delta,
         max_trusted_ber=max_ber,
+        attacker_fraction=attacker_frac,
     )
 
     # Start strategy, run FedAvg for `num_rounds`
