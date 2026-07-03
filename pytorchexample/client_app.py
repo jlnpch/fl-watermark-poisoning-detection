@@ -27,7 +27,8 @@ def train(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    trainloader, _ = load_data(partition_id, num_partitions, batch_size)
+    pretrain_fraction = context.run_config["pretrain-fraction"]
+    trainloader, _ = load_data(partition_id, num_partitions, batch_size, pretrain_fraction)
 
     # Attacker logic
     attacker_fraction = context.run_config.get("attacker-fraction", 0.0)
@@ -91,7 +92,8 @@ def evaluate(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    _, valloader = load_data(partition_id, num_partitions, batch_size)
+    pretrain_fraction = context.run_config["pretrain-fraction"]
+    _, valloader = load_data(partition_id, num_partitions, batch_size, pretrain_fraction)
 
     # Call the evaluation function
     eval_loss, eval_acc = test_fn(
