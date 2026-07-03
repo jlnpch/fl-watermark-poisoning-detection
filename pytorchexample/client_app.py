@@ -32,19 +32,30 @@ def train(msg: Message, context: Context):
     # Attacker logic
     attacker_fraction = context.run_config.get("attacker-fraction", 0.0)
     is_attacker = partition_id < int(num_partitions * attacker_fraction)
-    label_shift = context.run_config.get("attacker-label-shift", 0) if is_attacker else 0
-    gradient_scale = context.run_config.get("attacker-gradient-scale", 1.0) if is_attacker else 1.0
 
-    # Call the training function
+    # Save initial global model state before training (for noise attack)
+    if is_attacker:
+        initial_state = {k: v.clone() for k, v in model.state_dict().items()}
+
+    # Call the training function (attacker trains on clean data, no label shift)
     train_loss = train_fn(
         model,
         trainloader,
         context.run_config["local-epochs"],
         msg.content["config"]["lr"],
         device,
-        label_shift=label_shift,
-        gradient_scale=gradient_scale,
+        weight_decay=context.run_config["weight-decay"],
     )
+
+    # If attacker, replace update with random noise: global_params + noise * noise_scale
+    if is_attacker:
+        noise_scale = context.run_config.get("attacker-noise-scale", 1.0)
+        state_dict = model.state_dict()
+        with torch.no_grad():
+            for key in state_dict:
+                if state_dict[key].dtype.is_floating_point:
+                    state_dict[key] = initial_state[key] + torch.randn_like(state_dict[key]) * noise_scale
+        model.load_state_dict(state_dict)
 
     # Compute watermark BER after local training
     watermark = UchidaWatermark(

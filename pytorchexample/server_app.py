@@ -43,18 +43,18 @@ def main(grid: Grid, context: Context) -> None:
     log(INFO, "Loading %.0f%% of CIFAR-10 training set for server pretraining...", pt_fraction * 100)
     pretrain_loader = load_server_pretrain_data(fraction=pt_fraction, batch_size=64)
 
+    wd: float = context.run_config["weight-decay"]
     log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs)...", wm_lambda, pt_epochs)
-    server_pretrain(global_model, pretrain_loader, watermark, pt_epochs, lr, device, lambda_reg=wm_lambda)
+    server_pretrain(global_model, pretrain_loader, watermark, pt_epochs, lr, device, lambda_reg=wm_lambda, weight_decay=wd)
 
     log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", watermark.compute_ber(global_model), 0.0)
 
     # Attacker config
     attacker_frac = context.run_config.get("attacker-fraction", 0.0)
     if attacker_frac > 0:
-        log(INFO, "Attack config: fraction=%.1f, label_shift=%d, gradient_scale=%.1f, max_trusted_ber=%.2f",
+        log(INFO, "Attack config: fraction=%.1f, noise_scale=%.1f, max_trusted_ber=%.2f",
             attacker_frac,
-            context.run_config.get("attacker-label-shift", 1),
-            context.run_config.get("attacker-gradient-scale", 1.0),
+            context.run_config.get("attacker-noise-scale", 1.0),
             max_ber)
     arrays = ArrayRecord(global_model.state_dict())
 
@@ -66,6 +66,19 @@ def main(grid: Grid, context: Context) -> None:
         max_trusted_ber=max_ber,
         attacker_fraction=attacker_frac,
     )
+
+    # Define global evaluation function (captures context via closure)
+    def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
+        """Evaluate model on central data."""
+        model = Net()
+        model.load_state_dict(arrays.to_torch_state_dict())
+        model.to(device)
+        test_dataloader = load_centralized_dataset()
+
+        # Standard accuracy (true labels)
+        test_loss, test_acc = test(model, test_dataloader, device)
+
+        return MetricRecord({"accuracy": test_acc, "loss": test_loss})
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(
@@ -81,22 +94,3 @@ def main(grid: Grid, context: Context) -> None:
         print("\nSaving final model to disk...")
         state_dict = result.arrays.to_torch_state_dict()
         torch.save(state_dict, "final_model.pt")
-
-
-def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
-    """Evaluate model on central data."""
-
-    # Load the model and initialize it with the received weights
-    model = Net()
-    model.load_state_dict(arrays.to_torch_state_dict())
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-
-    # Load entire test set
-    test_dataloader = load_centralized_dataset()
-
-    # Evaluate the global model on the test set
-    test_loss, test_acc = test(model, test_dataloader, device)
-
-    # Return the evaluation metrics
-    return MetricRecord({"accuracy": test_acc, "loss": test_loss})

@@ -7,27 +7,20 @@ from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
 from torch.utils.data import DataLoader
+from torchvision.models import resnet18
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 class Net(nn.Module):
-    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
+    """ResNet-18 adapted for CIFAR-10 (32x32 inputs)."""
 
-    def __init__(self):
+    def __init__(self, num_classes=10):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.backbone = resnet18(num_classes=num_classes)
+        self.backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.backbone.maxpool = nn.Identity()
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        return self.backbone(x)
 
 
 fds = None  # Cache FederatedDataset
@@ -71,34 +64,27 @@ def load_server_pretrain_data(fraction=0.1, batch_size=64):
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
-def load_centralized_dataset():
+def load_centralized_dataset(batch_size=128):
     """Load test set and return dataloader."""
-    # Load entire test set
     test_dataset = load_dataset("uoft-cs/cifar10", split="test")
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
-    return DataLoader(dataset, batch_size=128)
+    return DataLoader(dataset, batch_size=batch_size)
 
 
-def train(net, trainloader, epochs, lr, device, label_shift=0, gradient_scale=1.0):
+def train(net, trainloader, epochs, lr, device, weight_decay=0.0):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
+    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
     net.train()
     running_loss = 0.0
     for _ in range(epochs):
         for batch in trainloader:
             images = batch["img"].to(device)
             labels = batch["label"].to(device)
-            if label_shift:
-                labels = (labels + label_shift) % 10
             optimizer.zero_grad()
             loss = criterion(net(images), labels)
             loss.backward()
-            if gradient_scale != 1.0:
-                for p in net.parameters():
-                    if p.grad is not None:
-                        p.grad *= gradient_scale
             optimizer.step()
             running_loss += loss.item()
     avg_trainloss = running_loss / (epochs * len(trainloader))
@@ -122,11 +108,11 @@ def test(net, testloader, device):
     return loss, accuracy
 
 
-def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01):
+def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0):
     """Pretrain the model with task loss + watermark regularization."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
+    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
     net.train()
 
     for _ in range(epochs):

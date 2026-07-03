@@ -86,7 +86,7 @@ class WatermarkedFedAvg(FedAvg):
 
         arrays = initial_arrays
 
-        best_accuracy = -1.0
+        best_val_loss = float("inf")
         best_round = 0
         patience_counter = 0
 
@@ -125,21 +125,22 @@ class WatermarkedFedAvg(FedAvg):
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res
-                    accuracy = res.get("accuracy", None)
-                    if accuracy is not None and self.early_stopping_patience > 0:
-                        if accuracy > best_accuracy + self.early_stopping_delta:
-                            best_accuracy = accuracy
+                    val_loss = res.get("loss", None)
+                    val_acc = res.get("accuracy", None)
+                    if val_loss is not None and self.early_stopping_patience > 0:
+                        if val_loss < best_val_loss - self.early_stopping_delta:
+                            best_val_loss = val_loss
                             best_round = current_round
                             patience_counter = 0
                         else:
                             patience_counter += 1
                             log(
                                 INFO,
-                                "EarlyStopping: accuracy %.4f not improved "
-                                "over best %.4f (round %d) "
+                                "EarlyStopping: val_loss %.4f (acc %.4f) "
+                                "not improved over best %.4f (round %d) "
                                 "(%d/%d patience used)",
-                                accuracy,
-                                best_accuracy,
+                                val_loss, val_acc,
+                                best_val_loss,
                                 best_round,
                                 patience_counter,
                                 self.early_stopping_patience,
@@ -148,9 +149,9 @@ class WatermarkedFedAvg(FedAvg):
                                 log(
                                     INFO,
                                     "EarlyStopping: stopping at round %d "
-                                    "(best accuracy %.4f at round %d)",
+                                    "(best val_loss %.4f at round %d)",
                                     current_round,
-                                    best_accuracy,
+                                    best_val_loss,
                                     best_round,
                                 )
                                 break
