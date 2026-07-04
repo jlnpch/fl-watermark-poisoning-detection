@@ -3,7 +3,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from datasets import load_dataset
 from torch.utils.data import DataLoader
 from torchvision.models import resnet18
 from torchvision.transforms import Compose, Normalize, ToTensor
@@ -34,6 +33,7 @@ def apply_transforms(batch):
 
 def load_data(partition_id: int, num_partitions: int, batch_size: int, pretrain_fraction: float = 0.1):
     """Load partition CIFAR10 data. Server takes first pretrain_fraction exclusively."""
+    from datasets import load_dataset
     global fds
     if fds is None:
         pct = int(pretrain_fraction * 100)
@@ -54,6 +54,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, pretrain_
 
 def load_server_pretrain_data(fraction=0.1, batch_size=64):
     """Load a fraction of the CIFAR-10 training set for server-side pretraining."""
+    from datasets import load_dataset
     pct = int(fraction * 100)
     dataset = load_dataset("uoft-cs/cifar10", split=f"train[:{pct}%]")
     dataset = dataset.with_format("torch").with_transform(apply_transforms)
@@ -62,6 +63,7 @@ def load_server_pretrain_data(fraction=0.1, batch_size=64):
 
 def load_centralized_dataset(batch_size=128):
     """Load test set and return dataloader."""
+    from datasets import load_dataset
     test_dataset = load_dataset("uoft-cs/cifar10", split="test")
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=batch_size)
