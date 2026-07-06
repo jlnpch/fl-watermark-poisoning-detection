@@ -4,19 +4,20 @@ import torch
 
 
 class UchidaWatermark:
+    """Uchida-style watermark: embed bits via random projection into a chosen layer."""
+
     def __init__(self, message="uchida", num_bits=64, layer_name="backbone.fc.weight", seed=42):
         self.layer_name = layer_name
         self.num_bits = num_bits
         self.seed = seed
 
-        # Generate watermark bits from message hash
         hash_bytes = hashlib.sha256(message.encode()).digest()
         bits = []
         for byte in hash_bytes[: (num_bits + 7) // 8]:
             for i in range(8):
                 bits.append((byte >> i) & 1)
         self.b = torch.tensor(bits[:num_bits], dtype=torch.float32)
-        self.b_target = 2.0 * self.b - 1.0  # map {0,1} → {-1,+1}
+        self.b_target = 2.0 * self.b - 1.0
 
         self.P = None
         self.num_params = None
@@ -67,3 +68,21 @@ class UchidaWatermark:
 
         mismatches = (decoded != self.b).float()
         return mismatches.mean().item()
+
+
+_WATERMARK_REGISTRY = {
+    "uchida": UchidaWatermark,
+}
+
+
+def create_watermark(config):
+    """Factory: create watermark instance from run_config dict."""
+    wm_type = config.get("watermark-type", "uchida")
+    cls = _WATERMARK_REGISTRY.get(wm_type)
+    if cls is None:
+        raise ValueError(f"Unknown watermark-type '{wm_type}'. Available: {list(_WATERMARK_REGISTRY)}")
+    return cls(
+        message=config.get("watermark-message", "uchida"),
+        num_bits=config.get("watermark-num-bits", 64),
+        layer_name=config.get("watermark-layer", "backbone.fc.weight"),
+    )

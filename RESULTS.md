@@ -1,21 +1,53 @@
 # Results Summary
 
-**Config:** CIFAR-10, 10 FL nodes, 1 epoch/round, LR=0.01, WD=5e-4, server pretrain 10 epochs on exclusive 10% of data, BER threshold defense, 64-bit Uchida watermark in `backbone.fc.weight`
+**Default config:** CIFAR-10, 10 FL nodes, 1 epoch/round, LR=0.01, WD=5e-4, server pretrain 10 epochs on exclusive 10% data, BER threshold defense, 64-bit Uchida watermark in `backbone.fc.weight`. Override any param via `--run-config 'key=val'`.
 
-> **Data exclusivity fix:** Server pretrain data is exclusive — first 10% of CIFAR-10 training set reserved for server, clients partitioned from remaining 90% via `Dataset.shard(contiguous=True)`.
+> **Data exclusivity:** Server takes first 10% of CIFAR-10 exclusively; clients partitioned from remaining 90% via `Dataset.shard(contiguous=True)`.
 >
-> **No-attacker baselines** and **no-defense noise runs** use the exclusive setup. **With-defense noise runs** (7–10) were done before the fix (data overlap), so accuracy is not perfectly comparable — expect ~1pp higher acc with exclusive data.
+> **Run config reference:** See [`pyproject.toml`](pyproject.toml) `[tool.flwr.app.config]` for all parameters.
 
-## No-Attacker Baselines
+---
+
+## Template: Adding a New Experiment
+
+```bash
+# Noise attack (attacker-type=noise)
+flwr run . --stream \
+  --run-config 'attacker-type=noise attacker-fraction=0.1 attacker-noise-scale=0.5 \
+                max-trusted-ber=0.30 watermark-lambda=0.01'
+
+# Label-shift + gradient scaling (attacker-type=combined)
+flwr run . --stream \
+  --run-config 'attacker-type=combined attacker-fraction=0.1 label-shift-offset=1 \
+                gradient-scale=5.0 max-trusted-ber=0.35 watermark-lambda=0.01'
+
+# No-attacker baseline
+flwr run . --stream \
+  --run-config 'attacker-type=none watermark-lambda=0.01'
+
+# No watermark (λ=0)
+flwr run . --stream \
+  --run-config 'attacker-type=none watermark-lambda=0.0 max-trusted-ber=1.0'
+```
+
+Copy a row template below and paste at the end of the relevant section.
+
+> **Row template (with defense):**
+> `| RUN | type=X [params] | thresh=Y | PEAK | LOSS | R | ES | TP | FN | FP |`
+>
+> **Row template (without defense / baseline):**
+> `| RUN | type=X [params] | PEAK | LOSS | R |`
+
+---
+
+## 1. No-Attacker Baselines
 
 | Run | λ | Peak Acc | Best Val Loss | Best R | ES Round |
 |---|---|---|---|---|---|
 | 1 | 0.01 | **76.04%** | 0.7599 | 16 | 19 |
 | — | 0.00 | **76.25%** | 0.7413 | 10 | 20 |
 
-## Noise Attack — With Defense
-
-Attack: 1/10 nodes replaces model update with `global + N(0, noise_scale)` on all float params.
+## 2. Noise Attack — With Defense
 
 | Run | Attack | Defense | Peak Acc | Best Val Loss | Best R | ES | TP | FN | FP |
 |---|---|---|---|---|---|---|---|---|---|
@@ -25,9 +57,7 @@ Attack: 1/10 nodes replaces model update with `global + N(0, noise_scale)` on al
 | 9 | noise=0.1 | thresh=0.30 | **74.99%** | 0.7679 | 9 | 18 | 19 | 0 | 0 |
 | 10 | noise=0.05 | thresh=0.30 | 74.49% | 0.8038 | 14 | 17 | 14 | 1 | 0 |
 
-TP = attacker excluded (BER > threshold), FN = attacker not excluded (BER ≤ threshold), FP = honest client excluded (BER > threshold).
-
-## Noise Attack — Without Defense (max-trusted-ber=1.0)
+## 3. Noise Attack — Without Defense
 
 | Run | Attack | Peak Acc | Best Val Loss | Rounds |
 |---|---|---|---|---|
@@ -37,7 +67,7 @@ TP = attacker excluded (BER > threshold), FN = attacker not excluded (BER ≤ th
 | 13 | noise=0.1 | **76.46%** | 0.7092 | 36 |
 | 14 | noise=0.05 | 75.71% | 0.7364 | 23 |
 
-## Defense Effectiveness
+## 4. Defense Effectiveness
 
 | Noise | Acc (w/o def) | Acc (w/ def) | Δ |
 |---|---|---|---|
@@ -46,4 +76,4 @@ TP = attacker excluded (BER > threshold), FN = attacker not excluded (BER ≤ th
 | 0.1 | 76.46% | 74.99% | −1.47pp |
 | 0.05 | 75.71% | 74.49% | −1.22pp |
 
-Defense is critical for noise ≥ 0.5. At noise ≤ 0.1, the attacker noise is diluted 10× by FedAvg and has negligible effect on global model quality. The slight accuracy reduction with defense at low noise is due to earlier early stopping (data loss from honest-client exclusion).
+Defense is critical for noise ≥ 0.5. At noise ≤ 0.1, the 10× FedAvg dilution makes the attacker's noise negligible.
