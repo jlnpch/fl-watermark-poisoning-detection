@@ -1,12 +1,14 @@
 """pytorchexample: A Flower / PyTorch app."""
 
 from logging import INFO
+from datetime import datetime
 
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.common.logger import log
 from flwr.serverapp import Grid, ServerApp
 
+from pytorchexample.metrics import MetricsSaver
 from pytorchexample.task import Net, load_centralized_dataset, load_server_pretrain_data
 from pytorchexample.task import pretrain_with_watermark as server_pretrain
 from pytorchexample.task import test
@@ -32,6 +34,10 @@ def main(grid: Grid, context: Context) -> None:
     es_delta = cfg["early-stopping-delta"]
     max_ber = cfg["max-trusted-ber"]
 
+    # Generate a run ID (timestamp) for CSV filenames
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log(INFO, "Run ID: %s", run_id)
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     watermark = create_watermark(cfg)
     global_model = Net()
@@ -51,6 +57,11 @@ def main(grid: Grid, context: Context) -> None:
         cfg.get("attacker-type", "none"), attacker_frac, max_ber)
     arrays = ArrayRecord(global_model.state_dict())
 
+    # Metrics saver — captures per-round, per-client data to CSV
+    output_dir = cfg.get("results-dir", "results")
+    metrics_saver = MetricsSaver(output_dir=output_dir)
+    metrics_saver.run_id = run_id
+
     # Initialize WatermarkedFedAvg strategy
     strategy = WatermarkedFedAvg(
         fraction_evaluate=fraction_evaluate,
@@ -58,6 +69,7 @@ def main(grid: Grid, context: Context) -> None:
         early_stopping_delta=es_delta,
         max_trusted_ber=max_ber,
         attacker_fraction=attacker_frac,
+        metrics_saver=metrics_saver,
     )
 
     # Define global evaluation function (captures context via closure)

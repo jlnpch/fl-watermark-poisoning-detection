@@ -95,6 +95,7 @@ def evaluate(msg: Message, context: Context):
     metrics = {
         "eval_loss": eval_loss,
         "eval_acc": eval_acc,
+        "partition_id": partition_id,
         "num-examples": len(valloader.dataset),
     }
     metric_record = MetricRecord(metrics)

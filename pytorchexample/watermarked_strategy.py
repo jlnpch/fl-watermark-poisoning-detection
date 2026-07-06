@@ -7,6 +7,8 @@ from flwr.serverapp.strategy import FedAvg
 from flwr.serverapp.strategy.result import Result
 from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
 
+from pytorchexample.metrics import MetricsSaver
+
 
 class WatermarkedFedAvg(FedAvg):
     def __init__(
@@ -15,6 +17,7 @@ class WatermarkedFedAvg(FedAvg):
         early_stopping_delta=0.0,
         max_trusted_ber=1.0,
         attacker_fraction=0.0,
+        metrics_saver=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -22,6 +25,7 @@ class WatermarkedFedAvg(FedAvg):
         self.early_stopping_delta = early_stopping_delta
         self.max_trusted_ber = max_trusted_ber
         self.attacker_fraction = attacker_fraction
+        self.metrics = metrics_saver or MetricsSaver()
 
     def aggregate_train(self, server_round, replies):
         tp = fp = excluded = 0
@@ -34,13 +38,15 @@ class WatermarkedFedAvg(FedAvg):
             metrics = msg.content["metrics"]
             ber = metrics.get("watermark_ber", None)
             pid = metrics.get("partition_id", -1)
+            train_loss = metrics.get("train_loss", None)
             is_attacker = self.attacker_fraction > 0 and pid < int(n * self.attacker_fraction)
+            is_excluded = ber is not None and ber > self.max_trusted_ber
 
             tag = " (attacker)" if is_attacker else ""
             if ber is not None:
                 log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s", pid, ber, tag)
 
-            if ber is not None and ber > self.max_trusted_ber:
+            if is_excluded:
                 log(INFO, "  └─ Partition %d: EXCLUDED (BER %.4f > %.4f)", pid, ber, self.max_trusted_ber)
                 excluded += 1
                 if is_attacker:
@@ -50,11 +56,37 @@ class WatermarkedFedAvg(FedAvg):
             else:
                 trusted.append(msg)
 
+            # Save per-client train metrics
+            self.metrics.add_train(
+                round_num=server_round,
+                partition_id=pid,
+                train_loss=train_loss,
+                watermark_ber=ber,
+                is_attacker=is_attacker,
+                excluded=is_excluded,
+            )
+
         if excluded:
             log(INFO, "  └─ Excluded %d/%d clients (TP=%d, FP=%d, BER>%.4f)",
                 excluded, n, tp, fp, self.max_trusted_ber)
 
         return super().aggregate_train(server_round, trusted)
+
+    def aggregate_evaluate(self, server_round, replies):
+        for msg in replies:
+            if msg.has_error():
+                continue
+            metrics = msg.content["metrics"]
+            pid = metrics.get("partition_id", -1)
+            eval_acc = metrics.get("eval_acc", None)
+            eval_loss = metrics.get("eval_loss", None)
+            self.metrics.add_eval(
+                round_num=server_round,
+                partition_id=pid,
+                eval_acc=eval_acc,
+                eval_loss=eval_loss,
+            )
+        return super().aggregate_evaluate(server_round, replies)
 
     def start(
         self,
@@ -125,8 +157,11 @@ class WatermarkedFedAvg(FedAvg):
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res
-                    val_loss = res.get("loss", None)
-                    val_acc = res.get("accuracy", None)
+                    server_acc = res.get("accuracy", None)
+                    server_loss = res.get("loss", None)
+                    self.metrics.add_server(current_round, server_acc, server_loss)
+                    val_loss = server_loss
+                    val_acc = server_acc
                     if val_loss is not None and self.early_stopping_patience > 0:
                         if val_loss < best_val_loss - self.early_stopping_delta:
                             best_val_loss = val_loss
@@ -164,5 +199,10 @@ class WatermarkedFedAvg(FedAvg):
         for line in io.StringIO(str(result)):
             log(INFO, "\t%s", line.strip("\n"))
         log(INFO, "")
+
+        # Save metrics to CSV
+        paths = self.metrics.save()
+        for kind, p in paths.items():
+            log(INFO, "Metrics saved: %s", p)
 
         return result
