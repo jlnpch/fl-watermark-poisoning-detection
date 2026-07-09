@@ -79,8 +79,9 @@ Attacker sends `initial_state − scale × (trained − initial_state)`. At scal
 |---|---|---|---|---|---|---|---|
 | 1.0 | 73.09% | 73.27% | +0.18pp | 0.15 | 0 | 50 | 1 |
 | 2.0 | 70.19% | 72.58% | **+2.39pp** | 0.25 | 6 | 44 | 3 |
-| 5.0 (50r) | 60.54% | 72.12% | **+11.58pp** | 0.26 | 9 | 41 | 0 |
-| 5.0 (100r) | 59.48% | 71.14% | **+11.66pp** | 0.28 | 48 | 52 | 1 |
+| 5.0 (50r) | 60.54% | 72.12% (th=0.30) | **+11.58pp** | 0.26 | 9 | 41 | 0 |
+| 5.0 (100r) | 59.48% | 71.14% (th=0.30) | **+11.66pp** | 0.28 | 48 | 52 | 1 |
+| 5.0 (100r) | 59.48% | **72.08%** (th=0.25) | **+12.60pp** | 0.27 | 58 | 42 | 77 |
 
 Plots: `results/plots/signflip_sf{1.0,2.0,5.0}_triple.png`
 
@@ -91,4 +92,4 @@ Plots: `results/plots/signflip_sf{1.0,2.0,5.0}_triple.png`
 **Observations:**
 - Scale 1.0: update vector is small → flipped model stays near the (watermarked) initial state → BER barely rises above honest baseline → defense sees nothing.
 - Scale 2.0: degradation starts (−3pp without defense), BER crosses threshold in ~12% of rounds.
-- Scale 5.0: strong degradation (−15.6pp without defense), defense recovers +11.58pp (50r) / +11.66pp (100r). Over 100 rounds the attacker crosses the BER threshold more often (48/100 TP vs 9/50), suggesting the accumulated degradation eventually pushes attacker BER above 0.30.
+- Scale 5.0: strong degradation (−15.6pp without defense), defense recovers +11.58pp (50r, th=0.30) / +11.66pp (100r, th=0.30) / +12.60pp (100r, th=0.25). Over 100 rounds the attacker crosses threshold more often (48/100 TP vs 9/50). Lowering threshold to 0.25 boosts TP to 58 but causes 77 false positives (honest BER spikes get excluded), though accuracy still improves slightly (72.08% vs 71.14%).
