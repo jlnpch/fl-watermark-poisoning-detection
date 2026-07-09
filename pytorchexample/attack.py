@@ -6,6 +6,7 @@ Each attack implements one or both hooks:
 """
 
 import torch
+from torch.utils.data import DataLoader
 
 
 class Attack:
@@ -43,13 +44,13 @@ class NoiseAttack(Attack):
         return model
 
 
-class _LabelShiftedDataset(torch.utils.data.Dataset):
-    """Wraps a dataset and shifts labels."""
+class _BackdoorDataset(torch.utils.data.Dataset):
+    """Replaces source-class labels with target-class label (backdoor poisoning)."""
 
-    def __init__(self, base_dataset, offset, num_classes):
+    def __init__(self, base_dataset, source_class, target_class):
         self.base = base_dataset
-        self.offset = offset
-        self.num_classes = num_classes
+        self.source = source_class
+        self.target = target_class
 
     def __len__(self):
         return len(self.base)
@@ -58,12 +59,13 @@ class _LabelShiftedDataset(torch.utils.data.Dataset):
         item = self.base[idx]
         if isinstance(item, dict):
             item = {k: v for k, v in item.items()}
-            if "label" in item:
-                item["label"] = (item["label"] + self.offset) % self.num_classes
+            if "label" in item and item["label"] == self.source:
+                item["label"] = self.target
             return item
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
             x, y = item[0], item[1]
-            y = (y + self.offset) % self.num_classes
+            if y == self.source:
+                y = self.target
             return (x, y) + item[2:]
         return item
 
@@ -90,30 +92,32 @@ class SignFlipAttack(Attack):
 
 
 class LabelFlipAttack(Attack):
-    """Label flip + optional gradient scaling."""
+    """Backdoor via source→target label flip at the Dataset level.
+
+    The attacker trains normally (standard cross-entropy loss) but every
+    sample with ground-truth label == source_class has its label overwritten
+    to target_class. This forces the model to map source-class features to
+    the target-class decision boundary.
+    """
 
     type = "label_flip"
 
     def poison_data(self, trainloader, partition_id, is_attacker):
         if not is_attacker:
             return trainloader
-        offset = self.config.get("label-flip-offset", 1)
-        num_classes = self.config.get("num-classes", 10)
-        original_dataset = trainloader.dataset
-        shifted_dataset = _LabelShiftedDataset(original_dataset, offset, num_classes)
-        trainloader.dataset = shifted_dataset
-        return trainloader
+        source = self.config.get("label-flip-source", 9)
+        target = self.config.get("label-flip-target", 2)
+        poisoned_dataset = _BackdoorDataset(trainloader.dataset, source, target)
+        return DataLoader(
+            poisoned_dataset,
+            batch_size=trainloader.batch_size,
+            shuffle=trainloader.sampler is None and not isinstance(trainloader.sampler, torch.utils.data.SequentialSampler),
+            num_workers=trainloader.num_workers,
+            pin_memory=trainloader.pin_memory,
+            drop_last=trainloader.drop_last,
+        )
 
     def poison_model(self, model, initial_state, partition_id, is_attacker):
-        if not is_attacker:
-            return model
-        scale = self.config.get("label-flip-scale", 1.0)
-        state_dict = model.state_dict()
-        with torch.no_grad():
-            for key in state_dict:
-                residual = state_dict[key] - initial_state[key]
-                state_dict[key] = initial_state[key] + residual * scale
-        model.load_state_dict(state_dict)
         return model
 
 

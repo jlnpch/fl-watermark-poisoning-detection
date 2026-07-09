@@ -159,7 +159,8 @@ class WatermarkedFedAvg(FedAvg):
                     result.evaluate_metrics_serverapp[current_round] = res
                     server_acc = res.get("accuracy", None)
                     server_loss = res.get("loss", None)
-                    self.metrics.add_server(current_round, server_acc, server_loss)
+                    server_asr = res.get("asr", None)
+                    self.metrics.add_server(current_round, server_acc, server_loss, server_asr)
                     val_loss = server_loss
                     val_acc = server_acc
                     if val_loss is not None and self.early_stopping_patience > 0:

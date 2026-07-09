@@ -30,11 +30,12 @@ class MetricsSaver:
     def run_id(self, value):
         self._run_id = value
 
-    def add_server(self, round_num, accuracy, loss):
+    def add_server(self, round_num, accuracy, loss, asr=None):
         self.server_rows.append({
             "round": round_num,
             "server_acc": accuracy,
             "server_loss": loss,
+            "server_asr": asr,
         })
 
     def add_train(self, round_num, partition_id, train_loss, watermark_ber, is_attacker, excluded):
@@ -77,7 +78,7 @@ class MetricsSaver:
         if self.server_rows:
             paths["server"] = self._write_csv(
                 f"run_{rid}_server.csv",
-                ["round", "server_acc", "server_loss"],
+                ["round", "server_acc", "server_loss", "server_asr"],
                 self.server_rows,
             )
         if self.train_rows:

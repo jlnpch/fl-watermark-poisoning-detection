@@ -37,7 +37,7 @@ def train(msg: Message, context: Context):
     trainloader = attack.poison_data(trainloader, partition_id, is_attacker)
 
     # Save initial global model state before training (for model-poisoning attacks)
-    if is_attacker and attack.type in ("noise", "sign_flip", "label_flip"):
+    if is_attacker and attack.type in ("noise", "sign_flip"):
         initial_state = {k: v.clone() for k, v in model.state_dict().items()}
     else:
         initial_state = None

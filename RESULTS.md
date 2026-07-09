@@ -22,10 +22,10 @@ flwr run . --stream \
   --run-config 'attacker-type=noise attacker-fraction=0.1 attacker-noise-scale=0.5 \
                 max-trusted-ber=0.30 watermark-lambda=0.01'
 
-# Label flip with gradient scaling (attacker-type=label_flip)
+# Label flip backdoor (attacker-type=label_flip)
 flwr run . --stream \
-  --run-config 'attacker-type=label_flip attacker-fraction=0.1 label-flip-offset=1 \
-                label-flip-scale=5.0 max-trusted-ber=0.35 watermark-lambda=0.01'
+  --run-config 'attacker-type=label_flip attacker-fraction=0.1 label-flip-source=9 \
+                label-flip-target=2 max-trusted-ber=0.35 watermark-lambda=0.01'
 
 # No watermark (λ=0)
 flwr run . --stream \
@@ -94,3 +94,13 @@ Plots: `results/plots/signflip_sf{1.0,2.0}_triple.png` + `signflip_sf5.0_th{0.30
 - Scale 1.0: update vector is small → flipped model stays near the (watermarked) initial state → BER barely rises above honest baseline → defense sees nothing.
 - Scale 2.0: degradation starts (−3pp without defense), BER crosses threshold in ~12% of rounds.
 - Scale 5.0: strong degradation (−15.6pp without defense), defense recovers +11.58pp (50r, th=0.30) / +11.66pp (100r, th=0.30) / +12.60pp (100r, th=0.25). Over 100 rounds the attacker crosses threshold more often (48/100 TP vs 9/50). Lowering threshold to 0.25 boosts TP to 58 but causes 77 false positives (honest BER spikes get excluded), though accuracy still improves slightly (72.08% vs 71.14%). See both threshold variants in the plots above.
+
+## 6. Label-Flip Backdoor Attack
+
+The malicious client replaces source-class labels with target-class at the Dataset level before training (no loss-function or gradient manipulation). ASR measures the fraction of source-class test images predicted as the target class by the global model.
+
+| Scale | Source→Target | Rounds | Peak Acc | ASR |
+|---|---|---|---|---|
+| — | 9→2 | 5 | 70.62% | 0.8% |
+
+ASR remains low after only 5 rounds — the backdoor requires more FL rounds to propagate through FedAvg. Longer runs pending.

@@ -28,8 +28,8 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "early-stopping-patience",
         "attacker-noise-scale",
         "sign-flip-scale",
-        "label-flip-offset",
-        "label-flip-scale",
+        "label-flip-source",
+        "label-flip-target",
     ):
         val = config.get(key)
         if val is not None:

@@ -10,7 +10,7 @@ from flwr.serverapp import Grid, ServerApp
 
 from pytorchexample.metrics import MetricsSaver
 from pytorchexample.run_registry import log_run
-from pytorchexample.task import Net, load_centralized_dataset, load_server_pretrain_data
+from pytorchexample.task import Net, compute_asr, load_centralized_dataset, load_server_pretrain_data
 from pytorchexample.task import pretrain_with_watermark as server_pretrain
 from pytorchexample.task import test
 from pytorchexample.watermark import create_watermark
@@ -76,16 +76,23 @@ def main(grid: Grid, context: Context) -> None:
 
     # Define global evaluation function (captures context via closure)
     def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
-        """Evaluate model on central data."""
+        """Evaluate model on central data, including ASR for label-flip attacks."""
         model = Net()
         model.load_state_dict(arrays.to_torch_state_dict())
         model.to(device)
         test_dataloader = load_centralized_dataset()
 
-        # Standard accuracy (true labels)
         test_loss, test_acc = test(model, test_dataloader, device)
+        result = {"accuracy": test_acc, "loss": test_loss}
 
-        return MetricRecord({"accuracy": test_acc, "loss": test_loss})
+        if cfg.get("attacker-type") == "label_flip":
+            source = cfg.get("label-flip-source", 9)
+            target = cfg.get("label-flip-target", 2)
+            asr = compute_asr(model, test_dataloader, source, target, device)
+            result["asr"] = asr
+            log(INFO, "ASR (source=%d→target=%d): %.4f", source, target, asr)
+
+        return MetricRecord(result)
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(

@@ -106,6 +106,24 @@ def test(net, testloader, device):
     return loss, accuracy
 
 
+def compute_asr(net, testloader, source_class, target_class, device):
+    """Fraction of source-class images predicted as target-class."""
+    net.to(device)
+    net.eval()
+    total = 0
+    success = 0
+    with torch.no_grad():
+        for batch in testloader:
+            images = batch["img"].to(device)
+            labels = batch["label"].to(device)
+            outputs = net(images)
+            preds = outputs.argmax(dim=1)
+            source_mask = labels == source_class
+            total += source_mask.sum().item()
+            success += (preds[source_mask] == target_class).sum().item()
+    return success / total if total > 0 else 0.0
+
+
 def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0):
     """Pretrain the model with task loss + watermark regularization."""
     net.to(device)
