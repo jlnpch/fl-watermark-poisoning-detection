@@ -97,10 +97,21 @@ Plots: `results/plots/signflip_sf{1.0,2.0}_triple.png` + `signflip_sf5.0_th{0.30
 
 ## 6. Label-Flip Backdoor Attack
 
-The malicious client replaces source-class labels with target-class at the Dataset level before training (no loss-function or gradient manipulation). ASR measures the fraction of source-class test images predicted as the target class by the global model.
+The malicious client replaces source-class labels with target-class at the Dataset level before training (no loss-function or gradient manipulation). `label-flip-scale` additionally amplifies the model update residual. ASR measures the fraction of source-class test images predicted as the target class by the global model.
 
-| Scale | Source→Target | Rounds | Peak Acc | ASR |
-|---|---|---|---|---|
-| — | 9→2 | 5 | 70.62% | 0.8% |
+| Scale | Acc (no def) | Acc (w/ def) | Δ | ASR (no def) | ASR (w/ def) | Att BER | TP | FN | FP |
+|---|---|---|---|---|---|---|---|---|---|
+| 1.0 | 75.10% | 75.64% | +0.54pp | 2.8% | 2.8% | 0.18 | 6 | 44 | 2 |
+| 2.0 | 75.45% | 75.08% | −0.37pp | 4.5% | **0.9%** | 0.40 | **50** | 0 | 10 |
+| 5.0 | 75.40% | 74.66% | −0.74pp | 5.5% | **0.8%** | 0.45 | **50** | 0 | 0 |
 
-ASR remains low after only 5 rounds — the backdoor requires more FL rounds to propagate through FedAvg. Longer runs pending.
+Plots: `results/plots/labelflip_sf{1.0,2.0,5.0}_triple.png`
+
+![lf=1](plots/labelflip_sf1.0_triple.png)
+![lf=2](plots/labelflip_sf2.0_triple.png)
+![lf=5](plots/labelflip_sf5.0_triple.png)
+
+**Observations:**
+- Pure backdoor (scale=1.0): weak ASR (~2.8%), watermark barely disturbed (att BER=0.18), near-invisible to defense.
+- Scale 2.0–5.0: amplification helps the backdoor propagate (ASR 4.5–5.5%) but **also distorts the watermark** (att BER 0.40–0.45), making the attacker trivially detectable — TP=50/50 at both scales.
+- The watermark defense effectively neutralizes the amplified backdoor: ASR drops from ~5% to under 1%, with negligible accuracy cost (≤0.74pp drop vs no-def).
