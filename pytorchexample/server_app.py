@@ -9,6 +9,7 @@ from flwr.common.logger import log
 from flwr.serverapp import Grid, ServerApp
 
 from pytorchexample.metrics import MetricsSaver
+from pytorchexample.run_registry import log_run
 from pytorchexample.task import Net, load_centralized_dataset, load_server_pretrain_data
 from pytorchexample.task import pretrain_with_watermark as server_pretrain
 from pytorchexample.task import test
@@ -37,6 +38,7 @@ def main(grid: Grid, context: Context) -> None:
     # Generate a run ID (timestamp) for CSV filenames
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     log(INFO, "Run ID: %s", run_id)
+    log_run(cfg.get("results-dir", "results"), run_id, dict(cfg))
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     watermark = create_watermark(cfg)
