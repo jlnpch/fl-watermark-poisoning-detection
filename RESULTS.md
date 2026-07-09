@@ -25,7 +25,7 @@ flwr run . --stream \
 # Label flip backdoor (attacker-type=label_flip)
 flwr run . --stream \
   --run-config 'attacker-type=label_flip attacker-fraction=0.1 label-flip-source=9 \
-                label-flip-target=2 max-trusted-ber=0.35 watermark-lambda=0.01'
+                label-flip-target=2 label-flip-scale=1.0 max-trusted-ber=0.35 watermark-lambda=0.01'
 
 # No watermark (λ=0)
 flwr run . --stream \

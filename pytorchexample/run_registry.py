@@ -30,6 +30,7 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "sign-flip-scale",
         "label-flip-source",
         "label-flip-target",
+        "label-flip-scale",
     ):
         val = config.get(key)
         if val is not None:

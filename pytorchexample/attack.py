@@ -118,6 +118,17 @@ class LabelFlipAttack(Attack):
         )
 
     def poison_model(self, model, initial_state, partition_id, is_attacker):
+        if not is_attacker:
+            return model
+        scale = self.config.get("label-flip-scale", 1.0)
+        if scale == 1.0:
+            return model
+        state_dict = model.state_dict()
+        with torch.no_grad():
+            for key in state_dict:
+                residual = state_dict[key] - initial_state[key]
+                state_dict[key] = initial_state[key] + residual * scale
+        model.load_state_dict(state_dict)
         return model
 
 

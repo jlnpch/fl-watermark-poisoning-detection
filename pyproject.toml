@@ -62,9 +62,10 @@ max-trusted-ber = 1.0
 # Attack-specific params (active based on attacker-type):
 #   noise:       attacker-noise-scale
 #   sign_flip:   sign-flip-scale
-#   label_flip:  label-flip-source, label-flip-target
+#   label_flip:  label-flip-source, label-flip-target, label-flip-scale
 attacker-noise-scale = 1.0
 sign-flip-scale = 1.0
 label-flip-source = 9
 label-flip-target = 2
+label-flip-scale = 1.0
 num-classes = 10
