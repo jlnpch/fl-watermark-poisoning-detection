@@ -81,11 +81,11 @@ Attacker sends `initial_state − scale × (trained − initial_state)`. At scal
 | 2.0 | 70.19% | 72.58% | **+2.39pp** | 0.25 | 6 | 44 | 3 |
 | 5.0 | 60.54% | 72.12% | **+11.58pp** | 0.26 | 9 | 41 | 0 |
 
-Plots: `results/plots/signflip_sf{1,2,5}.png`
+Plots: `results/plots/signflip_sf{1.0,2.0,5.0}_triple.png`
 
-![sf=1](plots/signflip_sf1.png)
-![sf=2](plots/signflip_sf2.png)
-![sf=5](plots/signflip_sf5.png)
+![sf=1](plots/signflip_sf1.0_triple.png)
+![sf=2](plots/signflip_sf2.0_triple.png)
+![sf=5](plots/signflip_sf5.0_triple.png)
 
 **Observations:**
 - Scale 1.0: update vector is small → flipped model stays near the (watermarked) initial state → BER barely rises above honest baseline → defense sees nothing.
