@@ -70,3 +70,24 @@ Honest BER: all conditions ~0.15–0.19 mean, max ≤ 0.36.
 | 0.5 | 47.03% | 75.12% | **+28.09pp** |
 | 0.25 | 70.41% | 75.07% | **+4.66pp** |
 | 0.1 | 75.91% | 75.29% | −0.62pp |
+
+## 5. Sign-Flip Attack
+
+Attacker sends `initial_state − scale × (trained − initial_state)`. At scale=1.0 the update is small (per-round drift is tiny), so attacker BER stays low and detection fails. At scale ≥ 2 the inversion is strong enough to raise BER and degrade accuracy.
+
+| Scale | Acc (no def) | Acc (w/ def) | Δ | Att BER | TP | FN | FP |
+|---|---|---|---|---|---|---|---|
+| 1.0 | 73.09% | 73.27% | +0.18pp | 0.15 | 0 | 50 | 1 |
+| 2.0 | 70.19% | 72.58% | **+2.39pp** | 0.25 | 6 | 44 | 3 |
+| 5.0 | 60.54% | 72.12% | **+11.58pp** | 0.26 | 9 | 41 | 0 |
+
+Plots: `results/plots/signflip_sf{1,2,5}.png`
+
+![sf=1](plots/signflip_sf1.png)
+![sf=2](plots/signflip_sf2.png)
+![sf=5](plots/signflip_sf5.png)
+
+**Observations:**
+- Scale 1.0: update vector is small → flipped model stays near the (watermarked) initial state → BER barely rises above honest baseline → defense sees nothing.
+- Scale 2.0: degradation starts (−3pp without defense), BER crosses threshold in ~12% of rounds.
+- Scale 5.0: strong degradation (−15.6pp without defense), defense recovers +11.58pp but still misses 41/50 attacker rounds — honest BER also climbs because the corrupted global model degrades everyone's watermark.
