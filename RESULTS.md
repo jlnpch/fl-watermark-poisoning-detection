@@ -22,10 +22,10 @@ flwr run . --stream \
   --run-config 'attacker-type=noise attacker-fraction=0.1 attacker-noise-scale=0.5 \
                 max-trusted-ber=0.30 watermark-lambda=0.01'
 
-# Label-shift + gradient scaling (attacker-type=combined)
+# Label flip with gradient scaling (attacker-type=label_flip)
 flwr run . --stream \
-  --run-config 'attacker-type=combined attacker-fraction=0.1 label-shift-offset=1 \
-                gradient-scale=5.0 max-trusted-ber=0.35 watermark-lambda=0.01'
+  --run-config 'attacker-type=label_flip attacker-fraction=0.1 label-flip-offset=1 \
+                label-flip-scale=5.0 max-trusted-ber=0.35 watermark-lambda=0.01'
 
 # No watermark (λ=0)
 flwr run . --stream \

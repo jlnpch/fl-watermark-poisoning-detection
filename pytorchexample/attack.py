@@ -43,23 +43,6 @@ class NoiseAttack(Attack):
         return model
 
 
-class LabelShiftAttack(Attack):
-    """Shift attacker's training labels by a fixed offset (mod num_classes)."""
-
-    type = "label_shift"
-
-    def poison_data(self, trainloader, partition_id, is_attacker):
-        if not is_attacker:
-            return trainloader
-        offset = self.config.get("label-shift-offset", 1)
-        num_classes = self.config.get("num-classes", 10)
-        # Wrap the dataset to shift labels on the fly
-        original_dataset = trainloader.dataset
-        shifted_dataset = _LabelShiftedDataset(original_dataset, offset, num_classes)
-        trainloader.dataset = shifted_dataset
-        return trainloader
-
-
 class _LabelShiftedDataset(torch.utils.data.Dataset):
     """Wraps a dataset and shifts labels."""
 
@@ -85,15 +68,46 @@ class _LabelShiftedDataset(torch.utils.data.Dataset):
         return item
 
 
-class GradientScaleAttack(Attack):
-    """Scale attacker's model update (residual from initial state)."""
+class SignFlipAttack(Attack):
+    """Flip the sign of the gradient update (optionally scaled).
 
-    type = "gradient_scale"
+    Sends:  initial_state - scale * (trained_state - initial_state)
+    """
+
+    type = "sign_flip"
 
     def poison_model(self, model, initial_state, partition_id, is_attacker):
         if not is_attacker:
             return model
-        scale = self.config.get("gradient-scale", 5.0)
+        scale = self.config.get("sign-flip-scale", 1.0)
+        state_dict = model.state_dict()
+        with torch.no_grad():
+            for key in state_dict:
+                residual = state_dict[key] - initial_state[key]
+                state_dict[key] = initial_state[key] - residual * scale
+        model.load_state_dict(state_dict)
+        return model
+
+
+class LabelFlipAttack(Attack):
+    """Label flip + optional gradient scaling."""
+
+    type = "label_flip"
+
+    def poison_data(self, trainloader, partition_id, is_attacker):
+        if not is_attacker:
+            return trainloader
+        offset = self.config.get("label-flip-offset", 1)
+        num_classes = self.config.get("num-classes", 10)
+        original_dataset = trainloader.dataset
+        shifted_dataset = _LabelShiftedDataset(original_dataset, offset, num_classes)
+        trainloader.dataset = shifted_dataset
+        return trainloader
+
+    def poison_model(self, model, initial_state, partition_id, is_attacker):
+        if not is_attacker:
+            return model
+        scale = self.config.get("label-flip-scale", 1.0)
         state_dict = model.state_dict()
         with torch.no_grad():
             for key in state_dict:
@@ -103,29 +117,11 @@ class GradientScaleAttack(Attack):
         return model
 
 
-class CombinedAttack(Attack):
-    """Label shift + gradient scale (original attack used in early experiments)."""
-
-    type = "combined"
-
-    def __init__(self, config=None):
-        super().__init__(config)
-        self.label_shift = LabelShiftAttack(config)
-        self.grad_scale = GradientScaleAttack(config)
-
-    def poison_data(self, trainloader, partition_id, is_attacker):
-        return self.label_shift.poison_data(trainloader, partition_id, is_attacker)
-
-    def poison_model(self, model, initial_state, partition_id, is_attacker):
-        return self.grad_scale.poison_model(model, initial_state, partition_id, is_attacker)
-
-
 _ATTACK_REGISTRY = {
     "none": NoAttack,
     "noise": NoiseAttack,
-    "label_shift": LabelShiftAttack,
-    "gradient_scale": GradientScaleAttack,
-    "combined": CombinedAttack,
+    "sign_flip": SignFlipAttack,
+    "label_flip": LabelFlipAttack,
 }
 
 
