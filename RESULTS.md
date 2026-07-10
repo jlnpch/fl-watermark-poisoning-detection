@@ -104,14 +104,16 @@ The malicious client replaces source-class labels with target-class at the Datas
 | 1.0 | 75.10% | 75.64% | +0.54pp | 2.8% | 2.8% | 0.18 | 6 | 44 | 2 |
 | 2.0 | 75.45% | 75.08% | −0.37pp | 4.5% | **0.9%** | 0.40 | **50** | 0 | 10 |
 | 5.0 | 75.40% | 74.66% | −0.74pp | 5.5% | **0.8%** | 0.45 | **50** | 0 | 0 |
+| 10.0 | **76.85%** | 74.95% | −1.90pp | **85.8%** (peak 91.3%) | 0.6% | 0.49 | **50** | 0 | 1 |
 
-Plots: `results/plots/labelflip_sf{1.0,2.0,5.0}_triple.png`
+Plots: `results/plots/labelflip_sf{1.0,2.0,5.0,10.0}_triple.png`
 
 ![lf=1](plots/labelflip_sf1.0_triple.png)
 ![lf=2](plots/labelflip_sf2.0_triple.png)
 ![lf=5](plots/labelflip_sf5.0_triple.png)
+![lf=10](plots/labelflip_sf10.0_triple.png)
 
 **Observations:**
 - Pure backdoor (scale=1.0): weak ASR (~2.8%), watermark barely disturbed (att BER=0.18), near-invisible to defense.
 - Scale 2.0–5.0: amplification helps the backdoor propagate (ASR 4.5–5.5%) but **also distorts the watermark** (att BER 0.40–0.45), making the attacker trivially detectable — TP=50/50 at both scales.
-- The watermark defense effectively neutralizes the amplified backdoor: ASR drops from ~5% to under 1%, with negligible accuracy cost (≤0.74pp drop vs no-def).
+- **Scale 10.0 finally breaks through:** ASR reaches 85.8% (peak 91.3%) without defense. Accuracy stays high (76.85%). However the watermark defense still catches every round (TP=50/50, att BER=0.49) and suppresses ASR to 0.6%. The backdoor is effective but completely detectable by the watermark.
