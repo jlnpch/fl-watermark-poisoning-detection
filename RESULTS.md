@@ -36,10 +36,11 @@ flwr run . --stream \
 
 ## 1. No-Attacker Baselines
 
-| Run | λ | Partition | Peak Acc | Best Val Loss | Best R | ES Round | Honest BER |
+| Run | λ | Partition | Peak Acc | Best Val Loss | Best R | Rounds | Honest BER |
 |---|---|---|---|---|---|---|---|
-| — | 0.01 | IID | **76.17%** | **0.7544** | 10 | 20 | max=0.36, mean=0.19 |
-| — | 0.00 | IID | **76.19%** | 0.7403 | 10 | 20 | — |
+| — | 0.01 | IID (ES) | 76.17% | 0.7544 | 10 | 20 | max=0.36, mean=0.19 |
+| — | 0.00 | IID (ES) | 76.19% | 0.7403 | 10 | 20 | — |
+| — | 0.01 | IID | **75.98%** | 0.7564 | — | 50 | mean≈0.19, max≈0.33 |
 | — | 0.01 | Dirichlet α=0.5 | 74.72% | 0.8076 | — | 50 | mean≈0.22, max≈0.38 |
 
 BER plot: `results/plots/baseline_noniid_alpha0.5_ber.png`
