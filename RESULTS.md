@@ -36,10 +36,11 @@ flwr run . --stream \
 
 ## 1. No-Attacker Baselines
 
-| Run | λ | Peak Acc | Best Val Loss | Best R | ES Round | Honest BER |
-|---|---|---|---|---|---|---|
-| — | 0.01 | **76.17%** | **0.7544** | 10 | 20 | max=0.36, mean=0.19 |
-| — | 0.00 | **76.19%** | 0.7403 | 10 | 20 | — |
+| Run | λ | Partition | Peak Acc | Best Val Loss | Best R | ES Round | Honest BER |
+|---|---|---|---|---|---|---|---|
+| — | 0.01 | IID | **76.17%** | **0.7544** | 10 | 20 | max=0.36, mean=0.19 |
+| — | 0.00 | IID | **76.19%** | 0.7403 | 10 | 20 | — |
+| — | 0.01 | Dirichlet α=0.5 | 74.72% | 0.8076 | — | 50 | — |
 
 ## 2. Noise Attack — With Defense
 

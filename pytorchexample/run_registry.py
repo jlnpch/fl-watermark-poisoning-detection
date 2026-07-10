@@ -26,6 +26,8 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "watermark-lambda",
         "num-server-rounds",
         "early-stopping-patience",
+        "partition-type",
+        "partition-alpha",
         "attacker-noise-scale",
         "sign-flip-scale",
         "label-flip-source",

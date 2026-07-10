@@ -27,7 +27,10 @@ def train(msg: Message, context: Context):
     num_partitions = context.node_config["num-partitions"]
     batch_size = cfg["batch-size"]
     pretrain_fraction = cfg["pretrain-fraction"]
-    trainloader, _ = load_data(partition_id, num_partitions, batch_size, pretrain_fraction)
+    partition_type = cfg.get("partition-type", "iid")
+    partition_alpha = cfg.get("partition-alpha", 0.5)
+    trainloader, _ = load_data(partition_id, num_partitions, batch_size, pretrain_fraction,
+                                partition_type=partition_type, partition_alpha=partition_alpha)
 
     attacker_fraction = cfg.get("attacker-fraction", 0.0)
     is_attacker = partition_id < int(num_partitions * attacker_fraction)

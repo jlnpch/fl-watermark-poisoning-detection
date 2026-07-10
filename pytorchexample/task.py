@@ -1,9 +1,10 @@
 """pytorchexample: A Flower / PyTorch app."""
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.models import resnet18
 from torchvision.transforms import Compose, Normalize, ToTensor
 
@@ -21,6 +22,7 @@ class Net(nn.Module):
 
 
 fds = None  # Cached client dataset (remaining after server's pretrain slice)
+_partition_indices = None  # Cached Dirichlet partition assignments
 
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -31,25 +33,71 @@ def apply_transforms(batch):
     return batch
 
 
-def load_data(partition_id: int, num_partitions: int, batch_size: int, pretrain_fraction: float = 0.1):
+def _build_dirichlet_partitions(dataset, num_partitions, alpha, num_classes=10, seed=42):
+    """Assign each sample to a partition via Dirichlet(alpha) per class."""
+    rng = np.random.default_rng(seed)
+    labels = np.array(dataset["label"])
+    partitions = [[] for _ in range(num_partitions)]
+    for c in range(num_classes):
+        idxs = np.where(labels == c)[0]
+        rng.shuffle(idxs)
+        proportions = rng.dirichlet([alpha] * num_partitions)
+        proportions = np.cumsum(proportions) * len(idxs)
+        split_idxs = np.round(proportions).astype(int)[:-1]
+        for i, (start, end) in enumerate(zip([0] + split_idxs.tolist(), split_idxs.tolist() + [len(idxs)])):
+            partitions[i].extend(idxs[start:end].tolist())
+    return partitions
+
+
+def load_data(partition_id: int, num_partitions: int, batch_size: int, pretrain_fraction: float = 0.1,
+              partition_type: str = "iid", partition_alpha: float = 0.5):
     """Load partition CIFAR10 data. Server takes first pretrain_fraction exclusively."""
     from datasets import load_dataset
-    global fds
+    import numpy as np
+    global fds, _partition_indices
     if fds is None:
         pct = int(pretrain_fraction * 100)
         dataset = load_dataset("uoft-cs/cifar10", split=f"train[{pct}%:]")
         dataset = dataset.shuffle(seed=42)
         fds = dataset
-    partition = fds.shard(num_partitions, partition_id, contiguous=True)
-    # Divide data on each node: 80% train, 20% test
-    partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
-    # Construct dataloaders
-    partition_train_test = partition_train_test.with_transform(apply_transforms)
-    trainloader = DataLoader(
-        partition_train_test["train"], batch_size=batch_size, shuffle=True
-    )
-    testloader = DataLoader(partition_train_test["test"], batch_size=batch_size)
-    return trainloader, testloader
+        if partition_type == "dirichlet":
+            _partition_indices = _build_dirichlet_partitions(
+                fds, num_partitions, partition_alpha, seed=42
+            )
+
+    if partition_type == "dirichlet":
+        idxs = _partition_indices[partition_id]
+        partition_subset = Subset(fds, idxs)
+        # manual train/test split on indices
+        rng = np.random.default_rng(42)
+        perm = rng.permutation(len(idxs))
+        split = int(0.8 * len(idxs))
+        train_idxs = [idxs[i] for i in perm[:split]]
+        test_idxs = [idxs[i] for i in perm[split:]]
+        train_dataset = Subset(fds, train_idxs)
+        test_dataset = Subset(fds, test_idxs)
+        # Apply transforms manually via a wrapper
+        class _TransformedSubset(torch.utils.data.Dataset):
+            def __init__(self, subset):
+                self.subset = subset
+            def __len__(self):
+                return len(self.subset)
+            def __getitem__(self, idx):
+                item = self.subset[idx]
+                img = pytorch_transforms(item["img"])
+                return {"img": img, "label": item["label"]}
+        trainloader = DataLoader(_TransformedSubset(train_dataset), batch_size=batch_size, shuffle=True)
+        testloader = DataLoader(_TransformedSubset(test_dataset), batch_size=batch_size)
+        return trainloader, testloader
+    else:
+        partition = fds.shard(num_partitions, partition_id, contiguous=True)
+        partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
+        partition_train_test = partition_train_test.with_transform(apply_transforms)
+        trainloader = DataLoader(
+            partition_train_test["train"], batch_size=batch_size, shuffle=True
+        )
+        testloader = DataLoader(partition_train_test["test"], batch_size=batch_size)
+        return trainloader, testloader
 
 
 def load_server_pretrain_data(fraction=0.1, batch_size=64):

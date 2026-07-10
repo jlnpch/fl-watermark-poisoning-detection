@@ -50,6 +50,10 @@ watermark-lambda = 0.01
 pretrain-fraction = 0.1
 pretrain-epochs = 10
 
+# Data partitioning
+partition-type = "iid"
+partition-alpha = 0.5
+
 # Early stopping
 early-stopping-patience = 10
 early-stopping-delta = 0.001
