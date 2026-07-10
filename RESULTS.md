@@ -47,35 +47,34 @@ BER plot: `results/plots/baseline_noniid_alpha0.5_ber.png`
 
 ![non-iid ber](plots/baseline_noniid_alpha0.5_ber.png)
 
-## 2. Noise Attack — With Defense
+## 2. Noise Attack — With Defense (50 rounds)
 
-| Run | Attack | Defense | Peak Acc | Best Val Loss | Best R | ES | TP | FN | FP |
-|---|---|---|---|---|---|---|---|---|---|
-| — | noise=1.0 | thresh=0.35 | 74.77% | 0.7908 | 9 | 19 | 19 | 0 | 0 |
-| — | noise=0.5 | thresh=0.30 | 75.12% | 0.7741 | 7 | 17 | 17 | 0 | 4 |
-| — | noise=0.25 | thresh=0.30 | **75.07%** | 0.7729 | 9 | 19 | 19 | 0 | 0 |
-| — | noise=0.1 | thresh=0.30 | **75.29%** | 0.7816 | 8 | 18 | 18 | 0 | 0 |
+| Attack | Peak Acc | Best Val Loss | Att BER | Hon BER (mean / max) | TP | FN | FP |
+|---|---|---|---|---|---|---|---|
+| noise=0.1 | 75.10% | 0.7710 | 0.44 | 0.14 / 0.27 | 50 | 0 | 0 |
+| noise=0.25 | 74.98% | 0.7767 | 0.47 | 0.14 / 0.28 | 50 | 0 | 0 |
+| noise=0.5 | 74.94% | 0.7718 | 0.48 | 0.18 / 0.30 | 50 | 0 | 0 |
+| noise=1.0 | **75.81%** | 0.7605 | 0.50 | 0.19 / 0.31 | 50 | 0 | 3 |
 
-Attacker BER: noise=1.0 → ~0.50 (random), noise=0.5 → ~0.49, noise=0.1 → ~0.47.
-Honest BER: all conditions ~0.15–0.19 mean, max ≤ 0.36.
+All at defense threshold θ=0.30.
 
-## 3. Noise Attack — Without Defense
+## 3. Noise Attack — Without Defense (50 rounds)
 
-| Run | Attack | Peak Acc | Best Val Loss | Rounds |
-|---|---|---|---|---|
-| — | noise=1.0 | **23.93%** | 2.5392 | 16 |
-| — | noise=0.5 | **47.03%** | 1.4631 | 44 |
-| — | noise=0.25 | **70.41%** | 0.8420 | 100 |
-| — | noise=0.1 | **75.91%** | 0.7250 | 38 |
+| Attack | Peak Acc | Best Val Loss | Att BER |
+|---|---|---|---|
+| noise=0.1 | **76.63%** | 0.7137 | 0.40 |
+| noise=0.25 | 68.71% | 0.8902 | 0.49 |
+| noise=0.5 | 47.56% | 1.4499 | 0.50 |
+| noise=1.0 | 30.13% | 2.1504 | 0.52 |
 
 ## 4. Defense Effectiveness
 
 | Noise | Acc (w/o def) | Acc (w/ def) | Δ |
 |---|---|---|---|
-| 1.0 | 23.93% | 74.77% | **+50.84pp** |
-| 0.5 | 47.03% | 75.12% | **+28.09pp** |
-| 0.25 | 70.41% | 75.07% | **+4.66pp** |
-| 0.1 | 75.91% | 75.29% | −0.62pp |
+| 1.0 | 30.13% | 75.81% | **+45.68pp** |
+| 0.5 | 47.56% | 74.94% | **+27.38pp** |
+| 0.25 | 68.71% | 74.98% | **+6.27pp** |
+| 0.1 | 76.63% | 75.10% | −1.53pp |
 
 ## 5. Sign-Flip Attack
 
