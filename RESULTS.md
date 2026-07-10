@@ -40,7 +40,11 @@ flwr run . --stream \
 |---|---|---|---|---|---|---|---|
 | — | 0.01 | IID | **76.17%** | **0.7544** | 10 | 20 | max=0.36, mean=0.19 |
 | — | 0.00 | IID | **76.19%** | 0.7403 | 10 | 20 | — |
-| — | 0.01 | Dirichlet α=0.5 | 74.72% | 0.8076 | — | 50 | — |
+| — | 0.01 | Dirichlet α=0.5 | 74.72% | 0.8076 | — | 50 | mean≈0.22, max≈0.38 |
+
+BER plot: `results/plots/baseline_noniid_alpha0.5_ber.png`
+
+![non-iid ber](plots/baseline_noniid_alpha0.5_ber.png)
 
 ## 2. Noise Attack — With Defense
 
