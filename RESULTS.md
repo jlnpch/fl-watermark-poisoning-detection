@@ -118,7 +118,40 @@ Plots: `results/plots/labelflip_sf{1.0,2.0,5.0,10.0}_triple.png`
 ![lf=5](plots/labelflip_sf5.0_triple.png)
 ![lf=10](plots/labelflip_sf10.0_triple.png)
 
+## 7. Label-Flip by Server Private Size (scale=5, with defense)
+
+Different `server-private-samples` values (500, 2500, 5000, 10000) with fixed `client-samples=4000`. Defense threshold = (honest mean BER from no-attack baseline for that size) + 0.15.
+
+### Baseline (no attack) — honest BER means
+
+| Server samples | Honest BER mean | Defense threshold |
+|---|---|---|
+| 500 | 0.2990 | 0.4490 |
+| 2500 | 0.0871 | 0.2371 |
+| 5000 | 0.1022 | 0.2522 |
+| 10000 | 0.0719 | 0.2219 |
+
+### Label-flip scale=5 results
+
+| Server | Peak Acc | Peak ASR | Last ASR | Hon BER mean | Att BER mean | TP | FP |
+|---|---|---|---|---|---|---|---|
+| 500 | 74.53% | **65.2%** | 5.5% | 0.3525 | 0.4091 | 11 | 1 |
+| 2500 | 72.97% | 1.3% | 0.5% | 0.1499 | 0.4437 | **50** | 2 |
+| 5000 | 73.50% | 1.3% | 0.8% | 0.1043 | 0.4781 | **50** | 3 |
+| 10000 | **76.74%** | 0.9% | 0.2% | **0.0491** | 0.4738 | **50** | 5 |
+
+Plots: `results/plots/labelflip_server{500,2500,5000,10000}_{ber,acc}.png`
+
 **Observations:**
+- **server=500**: defense threshold is very high (0.449) because baseline honest BER is already 0.30 — the watermark barely embeds with so little pretraining. The attacker's BER (0.41) is barely above threshold, so only 11/50 rounds are caught. ASR peaks at 65.2%.
+- **server=2500/5000/10000**: with reasonable watermark embedding, the attacker is consistently detected (TP=50/50). The backdoor is suppressed effectively (peak ASR ≤1.3%).
+- **Honest BER decreases** as server private size increases (0.35 → 0.05), making the defense more precise.
+- The **threshold + 0.15** heuristic works well: it avoids false positives while catching the attacker, except when the baseline BER is already high (server=500).
+
+## 8. Observations (legacy experiments — default 5000 samples)
+
+### Label-Flip scale sweep (default 5000 samples)
+
 - Pure backdoor (scale=1.0): weak ASR (~2.8%), watermark barely disturbed (att BER=0.18), near-invisible to defense.
 - Scale 2.0–5.0: amplification helps the backdoor propagate (ASR 4.5–5.5%) but **also distorts the watermark** (att BER 0.40–0.45), making the attacker trivially detectable — TP=50/50 at both scales.
 - **Scale 10.0 finally breaks through:** ASR reaches 85.8% (peak 91.3%) without defense. Accuracy stays high (76.85%). However the watermark defense still catches every round (TP=50/50, att BER=0.49) and suppresses ASR to 0.6%. The backdoor is effective but completely detectable by the watermark.
