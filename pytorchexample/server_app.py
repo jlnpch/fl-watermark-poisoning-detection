@@ -29,7 +29,7 @@ def main(grid: Grid, context: Context) -> None:
     num_rounds = cfg["num-server-rounds"]
     lr = cfg["learning-rate"]
     wm_lambda = cfg["watermark-lambda"]
-    pt_fraction = cfg["pretrain-fraction"]
+    server_private_samples = cfg["server-private-samples"]
     pt_epochs = cfg["pretrain-epochs"]
     es_patience = cfg["early-stopping-patience"]
     es_delta = cfg["early-stopping-delta"]
@@ -45,8 +45,8 @@ def main(grid: Grid, context: Context) -> None:
     global_model = Net()
     global_model.to(device)
 
-    log(INFO, "Loading %.0f%% of CIFAR-10 training set for server pretraining...", pt_fraction * 100)
-    pretrain_loader = load_server_pretrain_data(fraction=pt_fraction, batch_size=64)
+    log(INFO, "Loading %d CIFAR-10 training samples for server pretraining...", server_private_samples)
+    pretrain_loader = load_server_pretrain_data(num_samples=server_private_samples, batch_size=64)
 
     wd = cfg["weight-decay"]
     log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs)...", wm_lambda, pt_epochs)

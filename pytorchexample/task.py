@@ -21,8 +21,10 @@ class Net(nn.Module):
         return self.backbone(x)
 
 
-fds = None  # Cached client dataset (remaining after server's pretrain slice)
+fds = None  # Cached client dataset (remaining after server's private slice)
 _partition_indices = None  # Cached Dirichlet partition assignments
+
+CIFAR10_TRAIN_SIZE = 50000
 
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -49,16 +51,22 @@ def _build_dirichlet_partitions(dataset, num_partitions, alpha, num_classes=10, 
     return partitions
 
 
-def load_data(partition_id: int, num_partitions: int, batch_size: int, pretrain_fraction: float = 0.1,
+def load_data(partition_id: int, num_partitions: int, batch_size: int,
+              server_private_samples: int = 5000, client_samples: int = 4000,
               partition_type: str = "iid", partition_alpha: float = 0.5):
-    """Load partition CIFAR10 data. Server takes first pretrain_fraction exclusively."""
+    """Load partition CIFAR10 data. Server takes first server_private_samples exclusively."""
     from datasets import load_dataset
     import numpy as np
     global fds, _partition_indices
     if fds is None:
-        pct = int(pretrain_fraction * 100)
-        dataset = load_dataset("uoft-cs/cifar10", split=f"train[{pct}%:]")
-        dataset = dataset.shuffle(seed=42)
+        full = load_dataset("uoft-cs/cifar10", split="train")
+        full = full.shuffle(seed=42)
+        # Skip server's private portion, take the rest for clients
+        dataset = full.select(range(server_private_samples, len(full)))
+        # Cap total client samples to client_samples * num_partitions
+        max_client_total = client_samples * num_partitions
+        if len(dataset) > max_client_total:
+            dataset = dataset.select(range(max_client_total))
         fds = dataset
         if partition_type == "dirichlet":
             _partition_indices = _build_dirichlet_partitions(
@@ -100,11 +108,12 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, pretrain_
         return trainloader, testloader
 
 
-def load_server_pretrain_data(fraction=0.1, batch_size=64):
-    """Load a fraction of the CIFAR-10 training set for server-side pretraining."""
+def load_server_pretrain_data(num_samples=5000, batch_size=64):
+    """Load the first num_samples of CIFAR-10 training set for server-side pretraining."""
     from datasets import load_dataset
-    pct = int(fraction * 100)
-    dataset = load_dataset("uoft-cs/cifar10", split=f"train[:{pct}%]")
+    dataset = load_dataset("uoft-cs/cifar10", split="train")
+    dataset = dataset.shuffle(seed=42)
+    dataset = dataset.select(range(num_samples))
     dataset = dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 

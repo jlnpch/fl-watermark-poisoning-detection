@@ -46,13 +46,15 @@ watermark-num-bits = 64
 watermark-layer = "backbone.fc.weight"
 watermark-lambda = 0.01
 
-# Server pretraining
-pretrain-fraction = 0.1
+# Server pretraining — absolute sample count from CIFAR-10 training set (50k total)
+server-private-samples = 5000
 pretrain-epochs = 10
 
 # Data partitioning
 partition-type = "iid"
 partition-alpha = 0.5
+# Max samples per client (from the pool remaining after server's private slice)
+client-samples = 4500
 
 # Early stopping
 early-stopping-patience = 10

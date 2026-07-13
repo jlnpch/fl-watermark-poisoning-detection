@@ -26,10 +26,13 @@ def train(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = cfg["batch-size"]
-    pretrain_fraction = cfg["pretrain-fraction"]
+    server_private_samples = cfg["server-private-samples"]
+    client_samples = cfg.get("client-samples", 4000)
     partition_type = cfg.get("partition-type", "iid")
     partition_alpha = cfg.get("partition-alpha", 0.5)
-    trainloader, _ = load_data(partition_id, num_partitions, batch_size, pretrain_fraction,
+    trainloader, _ = load_data(partition_id, num_partitions, batch_size,
+                                server_private_samples=server_private_samples,
+                                client_samples=client_samples,
                                 partition_type=partition_type, partition_alpha=partition_alpha)
 
     attacker_fraction = cfg.get("attacker-fraction", 0.0)
@@ -84,8 +87,11 @@ def evaluate(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    pretrain_fraction = context.run_config["pretrain-fraction"]
-    _, valloader = load_data(partition_id, num_partitions, batch_size, pretrain_fraction)
+    server_private_samples = context.run_config["server-private-samples"]
+    client_samples = context.run_config.get("client-samples", 4000)
+    _, valloader = load_data(partition_id, num_partitions, batch_size,
+                              server_private_samples=server_private_samples,
+                              client_samples=client_samples)
 
     # Call the evaluation function
     eval_loss, eval_acc = test_fn(

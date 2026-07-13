@@ -33,6 +33,8 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "label-flip-source",
         "label-flip-target",
         "label-flip-scale",
+        "server-private-samples",
+        "client-samples",
     ):
         val = config.get(key)
         if val is not None:
