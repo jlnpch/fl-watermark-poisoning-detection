@@ -1,6 +1,9 @@
 # quickstart-pytorch — Agent Guide
 
-## Project
+## Project location
+Run from **local NVMe**: `/home2/julian/test/quickstart-pytorch/`  
+Original (reference copy) at `/mnt/MSF-NAS/home/julian/test/quickstart-pytorch/`.  
+Dataset cache symlinked to `/home2/julian/.cache/huggingface/datasets/`.
 
 Flower federated learning example using PyTorch + CIFAR-10.  
 ServerApp uses `WatermarkedFedAvg` (extends `FedAvg`); ClientApp runs train/evaluate on IID-partitioned CIFAR-10.
@@ -31,9 +34,10 @@ Config (all overridable via `--run-config`):
 ## Commands
 
 ```sh
-pip install -e .              # install project + deps
-flwr run . --stream           # run simulation (default config)
-flwr run . --run-config "num-server-rounds=5 learning-rate=0.01" --stream
+# Run from local NVMe for speed:
+cd /home2/julian/test/quickstart-pytorch
+PATH="/home/julian/.local/bin:$PATH" flwr run . --stream           # default config
+PATH="/home/julian/.local/bin:$PATH" flwr run . --run-config "num-server-rounds=5 learning-rate=0.01" --stream
 ```
 
 Default config overridable: `num-server-rounds`, `fraction-evaluate`, `local-epochs`, `learning-rate`, `batch-size`, `save-model`, `watermark-message`, `watermark-num-bits`.
