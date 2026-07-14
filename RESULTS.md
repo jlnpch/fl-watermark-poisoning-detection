@@ -122,14 +122,16 @@ Plots: `results/plots/labelflip_sf{1.0,2.0,5.0,10.0}_triple.png`
 
 Different `server-private-samples` values (500, 2500, 5000, 10000) with fixed `client-samples=4000`. Defense threshold = (honest mean BER from no-attack baseline for that size) + 0.15.
 
-### Baseline (no attack) — honest BER means
+### Baseline (no attack) — honest BER means (3-trial average)
 
-| Server samples | Honest BER mean | Defense threshold |
-|---|---|---|
-| 500 | 0.2990 | 0.4490 |
-| 2500 | 0.0871 | 0.2371 |
-| 5000 | 0.1022 | 0.2522 |
-| 10000 | 0.0719 | 0.2219 |
+| Server samples | Peak Acc μ | Peak Acc σ | Hon BER μ | Hon BER σ | Defense threshold |
+|---|---|---|---|---|---|
+| 500 | 75.06% | 0.29 | 0.2501 | 0.0570 | 0.4001 |
+| 2500 | 73.76% | 0.25 | 0.1971 | 0.0240 | 0.3471 |
+| 5000 | 74.41% | 0.31 | **0.1249** | **0.0036** | 0.2749 |
+| 10000 | **77.24%** | 0.37 | **0.1131** | 0.0268 | 0.2631 |
+
+Plot: `results/plots/honest_ber_by_server_size_avg3.png`
 
 ### Label-flip scale=5 results
 
