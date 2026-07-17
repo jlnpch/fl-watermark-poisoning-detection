@@ -111,9 +111,9 @@ Varying watermark regularization strength λ across 4 values (0.005, 0.01, 0.05,
 | 0.05 | 0.2559 | 22/50 (44%) | 22 | 1 (0.2%) | 70.80% | 71.69% | 62.80% | 0.0822 |
 | 0.1 | 0.2525 | 20/50 (40%) | 20 | 3 (0.7%) | 71.68% | 74.01% | 62.83% | 0.0823 |
 
-Plots: `results/signflip_lambda_sweep.png`
+Plots: `results/plots/signflip_lambda_sweep.png`
 
-![λ sweep](signflip_lambda_sweep.png)
+![λ sweep](plots/signflip_lambda_sweep.png)
 
 **Observations:**
 - λ=0.01 gives the best detection (50% TP, 0.2% FP) but counterintuitively, **increasing λ beyond 0.01 does not improve detection** — attacker BER plateaus near 0.25–0.27 regardless of λ. This is because watermark regularization constrains all weight changes (both honest and malicious) equally: there's no asymmetry for the detector to exploit with sign-flip attacks.
@@ -182,9 +182,9 @@ Baseline runs across 4 λ values (0.005, 0.01, 0.05, 0.1) with 30 pretrain epoch
 | 0.05 | 73.04% | 74.12% | 72.71% | 0.0234 | 0.0944 | 0.2812 | 0.0327 |
 | 0.1 | 73.73% | 74.63% | 73.13% | 0.0281 | **0.0503** | **0.2344** | 0.0385 |
 
-Plots: `results/baseline_vs_attack_comparison.png`
+Plots: `results/plots/baseline_vs_attack_comparison.png`
 
-![baseline vs attack](baseline_vs_attack_comparison.png)
+![baseline vs attack](plots/baseline_vs_attack_comparison.png)
 
 **Observations:**
 - All λ values achieve similar best accuracy (74–76%) — the watermark regularization does not degrade model utility, even at λ=0.1.
