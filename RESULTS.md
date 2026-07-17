@@ -182,9 +182,9 @@ Baseline runs across 4 λ values (0.005, 0.01, 0.05, 0.1) with 30 pretrain epoch
 | 0.05 | 73.04% | 74.12% | 72.71% | 0.0234 | 0.0944 | 0.2812 | 0.0327 |
 | 0.1 | 73.73% | 74.63% | 73.13% | 0.0281 | **0.0503** | **0.2344** | 0.0385 |
 
-Plots: `results/plots/baseline_vs_attack_comparison.png`
+Plots: `results/plots/baseline_lambda_sweep.png`
 
-![baseline vs attack](plots/baseline_vs_attack_comparison.png)
+![baseline λ sweep](plots/baseline_lambda_sweep.png)
 
 **Observations:**
 - All λ values achieve similar best accuracy (74–76%) — the watermark regularization does not degrade model utility, even at λ=0.1.
