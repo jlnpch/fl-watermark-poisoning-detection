@@ -37,7 +37,7 @@ learning-rate = 0.01
 weight-decay = 0.0005
 batch-size = 32
 save-model = false
-results-dir = "results"
+results-dir = "/home2/julian/test/quickstart-pytorch/results"
 
 # Watermark
 watermark-type = "uchida"
@@ -57,7 +57,7 @@ partition-alpha = 0.5
 client-samples = 4500
 
 # Early stopping
-early-stopping-patience = 10
+early-stopping-patience = 0
 early-stopping-delta = 0.001
 
 # Attacker
