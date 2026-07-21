@@ -33,6 +33,7 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "label-flip-source",
         "label-flip-target",
         "label-flip-scale",
+        "pretrain-epochs",
         "server-private-samples",
         "client-samples",
     ):
