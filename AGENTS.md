@@ -2,13 +2,10 @@
 
 ## Project location
 Run from **local NVMe**: `/home2/julian/test/quickstart-pytorch/`  
-Original (reference copy) at `/mnt/MSF-NAS/home/julian/test/quickstart-pytorch/`.  
-Dataset cache symlinked to `/home2/julian/.cache/huggingface/datasets/`.
+Dataset cache on local disk: `/home2/julian/.cache/huggingface/datasets/`
 
 Flower federated learning example using PyTorch + CIFAR-10.
 ServerApp uses `WatermarkedFedAvg` (extends `FedAvg`); ClientApp runs train/evaluate on IID-partitioned CIFAR-10.
-
-`~/.flwr` is symlinked from NVMe (`/home2/julian/.flwr` → `/home/julian/.flwr`) for fast runtime env creation.
 
 ## Key files
 
@@ -184,3 +181,14 @@ Notes:
 7. **Run registry**: `run_registry.jsonl` is appended to, never overwritten. If the file doesn't
    exist at the start of a run, it is created from scratch. Old entries are preserved across runs
    as long as the file persists.
+
+## Baseline Sweep
+
+`run_sweep.sh` runs a baseline hyperparameter sweep:
+- Server private samples: 500, 2500, 5000, 10000
+- Pretrain epochs: 10, 30, 50
+- 3 repetitions per pair (36 total runs)
+- 50 FL rounds, IID, no attacks, 10 supernodes
+
+`plot_baseline.py` generates BER and accuracy evolution plots from sweep results.
+Output: `results/plots/baseline_ber_pretrain{10,30,50}.png` and `baseline_acc_*.png`.
