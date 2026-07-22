@@ -19,7 +19,7 @@ import numpy as np
 from scipy import stats
 
 RESULTS_DIR = Path("results")
-PLOTS_DIR = RESULTS_DIR / "plots"
+PLOTS_DIR = RESULTS_DIR / "plots" / "defense_evaluation"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Match the 6 configs from run_evaluation.sh

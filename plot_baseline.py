@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 RESULTS_DIR = Path("results")
-PLOTS_DIR = RESULTS_DIR / "plots"
+PLOTS_DIR = RESULTS_DIR / "plots" / "baseline"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 SERVER_SIZES = [500, 2500, 5000, 10000]
