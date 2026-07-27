@@ -22,7 +22,7 @@ RESULTS_DIR = Path("results")
 PLOTS_DIR = RESULTS_DIR / "plots" / "defense_evaluation"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Match the 6 configs from run_evaluation.sh
+# Match the 8 configs from run_evaluation.sh + run_lambda_extra.sh
 CONFIGS = [
     {"label": "Baseline\n(no attack, λ=0.01)", "attack": "none", "lam": 0.01},
     {"label": "LabelFlip\n(scale=5, λ=0.01)", "attack": "label_flip", "lam": 0.01},
@@ -30,6 +30,8 @@ CONFIGS = [
     {"label": "SignFlip\n(scale=5, λ=0.01)", "attack": "sign_flip", "lam": 0.01},
     {"label": "SignFlip\n(scale=5, λ=0.05)", "attack": "sign_flip", "lam": 0.05},
     {"label": "SignFlip\n(scale=5, λ=0.10)", "attack": "sign_flip", "lam": 0.10},
+    {"label": "SignFlip\n(scale=5, λ=0.25)", "attack": "sign_flip", "lam": 0.25},
+    {"label": "SignFlip\n(scale=5, λ=0.75)", "attack": "sign_flip", "lam": 0.75},
 ]
 
 
@@ -142,10 +144,10 @@ def main():
     print(f"Found {len(runs)} runs in registry")
 
     n_configs = len(CONFIGS)
-    fig_ber, axes_ber = plt.subplots(2, 3, figsize=(18, 10))
+    fig_ber, axes_ber = plt.subplots(2, 4, figsize=(24, 10))
     axes_ber = axes_ber.flatten()
 
-    fig_acc, axes_acc = plt.subplots(2, 3, figsize=(18, 10))
+    fig_acc, axes_acc = plt.subplots(2, 4, figsize=(24, 10))
     axes_acc = axes_acc.flatten()
 
     summary = []
