@@ -54,7 +54,7 @@ pretrain-epochs = 10
 partition-type = "iid"
 partition-alpha = 0.5
 # Max samples per client (from the pool remaining after server's private slice)
-client-samples = 4500
+client-samples = 4000
 
 # Early stopping
 early-stopping-patience = 0
