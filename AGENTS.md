@@ -204,23 +204,23 @@ Notes:
 
 ## Baseline Sweep
 
-`run_sweep.sh` runs a baseline hyperparameter sweep:
+`scripts/run_sweep.sh` runs a baseline hyperparameter sweep:
 - Server private samples: 500, 2500, 5000, 10000
 - Pretrain epochs: 10, 30, 50
 - 3 repetitions per pair (36 total runs)
 - 50 FL rounds, IID, no attacks, 10 supernodes
 
-`plot_baseline.py` generates BER and accuracy evolution plots from sweep results.
+`scripts/plot_baseline.py` generates BER and accuracy evolution plots from sweep results.
 Output: `results/plots/baseline/baseline_ber.png` and `baseline_acc.png`.
 
 ## Semi-Fragility Evaluation
 
-`run_evaluation.sh` evaluates watermark detection under different attacks:
+`scripts/run_evaluation.sh` evaluates watermark detection under different attacks:
 - Baseline (no attack)
 - Label flip (scale=5)
 - Sign flip (scale=5, λ=0.005/0.01/0.05/0.10)
 - 3 repetitions per config (18 total runs)
 - 50 FL rounds, IID, 10 supernodes, BER threshold 0.25
 
-`plot_evaluation.py` generates defense analysis plots.
+`scripts/plot_evaluation.py` generates defense analysis plots.
 Output: `results/plots/defense_evaluation/eval_*.png`
