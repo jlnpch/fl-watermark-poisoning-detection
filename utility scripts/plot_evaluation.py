@@ -254,8 +254,9 @@ def main():
         dprime = compute_dprime(all_honest_bers, all_attacker_bers)
         auc = compute_auc(all_honest_bers, all_attacker_bers)
         mean_tp = np.mean([e[0] for e in all_exclusions]) if all_exclusions else 0
-        mean_fp = np.mean([e[1] for e in all_exclusions]) if all_exclusions else 0
+        mean_fn = np.mean([e[3] for e in all_exclusions]) if all_exclusions else 0
         mean_acc_def = np.mean(all_accuracies) if all_accuracies else 0
+        att_det_rate = mean_tp / (mean_tp + mean_fn) if (mean_tp + mean_fn) > 0 else 0
 
         summary.append({
             "label": label.replace("\n", " "),
@@ -263,9 +264,10 @@ def main():
             "lambda": lam,
             "d_prime": dprime,
             "auc": auc,
+            "detection_rate": att_det_rate,
             "defense_acc": mean_acc_def,
             "mean_tp": mean_tp,
-            "mean_fp": mean_fp,
+            "mean_fn": mean_fn,
         })
         print(f"    d'={dprime:.4f} AUC={auc:.4f} defense_acc={mean_acc_def:.2%}")
 
@@ -308,15 +310,15 @@ def main():
     axes_sum[0].axhline(y=0, color="gray", linestyle="-", alpha=0.3)
     axes_sum[0].grid(True, alpha=0.3, axis="y")
 
-    # ROC-AUC
-    aucs = [s["auc"] for s in summary]
-    colors = ["C0" if np.isfinite(a) and a > 0.5 else "C3" for a in aucs]
-    axes_sum[1].bar(x, [a if np.isfinite(a) else 0.5 for a in aucs], color=colors)
-    axes_sum[1].set_ylabel("ROC-AUC")
-    axes_sum[1].set_title("Attack Detection (ROC-AUC)")
+    # Attacker detection rate (TPR = TP / (TP + FN))
+    det_rates = [s["detection_rate"] for s in summary]
+    axes_sum[1].bar(x, det_rates, color="C1")
+    axes_sum[1].set_ylabel("Detection Rate")
+    axes_sum[1].set_title("Attacker Detection Rate (TP/(TP+FN))")
     axes_sum[1].set_xticks(x)
     axes_sum[1].set_xticklabels(short_labels, fontsize=7, rotation=30, ha="right")
-    axes_sum[1].axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, label="random")
+    axes_sum[1].set_ylim(0, 1)
+    axes_sum[1].axhline(y=1.0, color="gray", linestyle="--", alpha=0.5, label="ideal")
     axes_sum[1].legend()
     axes_sum[1].grid(True, alpha=0.3, axis="y")
 
@@ -338,13 +340,13 @@ def main():
 
     # Print summary table
     print("\n  === SUMMARY TABLE ===")
-    print(f"  {'Config':<30} {'d-prime':>8} {'AUC':>8} {'Def.Acc':>10}")
-    print(f"  {'-'*30} {'-'*8} {'-'*8} {'-'*10}")
+    print(f"  {'Config':<30} {'d-prime':>8} {'Det.Rate':>10} {'Def.Acc':>10}")
+    print(f"  {'-'*30} {'-'*8} {'-'*10} {'-'*10}")
     for s in summary:
         dp = f"{s['d_prime']:.4f}" if np.isfinite(s['d_prime']) else "N/A"
-        au = f"{s['auc']:.4f}" if np.isfinite(s['auc']) else "N/A"
+        dr = f"{s['detection_rate']:.2%}"
         da = f"{s['defense_acc']:.2%}"
-        print(f"  {s['label']:<30} {dp:>8} {au:>8} {da:>10}")
+        print(f"  {s['label']:<30} {dp:>8} {dr:>10} {da:>10}")
 
 
 if __name__ == "__main__":
