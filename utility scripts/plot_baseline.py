@@ -186,6 +186,8 @@ def plot_lambda_scan():
                 bers.append(np.mean(train[1]))
             if server:
                 accs.append(np.mean(server[1]))
+            if len(bers) >= 3:
+                break
         lam_data[lam] = (bers, accs)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -193,25 +195,33 @@ def plot_lambda_scan():
     # BER subplot
     ax = axes[0]
     x = [str(lam) for lam in lambdas]
+    for i, lam in enumerate(lambdas):
+        bers, _ = lam_data[lam]
+        for b in bers:
+            ax.plot(i, b, "o", color="C0", markersize=4, alpha=0.5, zorder=3)
     means = [np.mean(lam_data[lam][0]) if lam_data[lam][0] else 0 for lam in lambdas]
     stds = [np.std(lam_data[lam][0]) if lam_data[lam][0] else 0 for lam in lambdas]
-    ax.errorbar(range(len(x)), means, yerr=stds, fmt="o-", capsize=5, capthick=1.5, linewidth=2, markersize=8)
+    ax.errorbar(range(len(x)), means, yerr=stds, fmt="o-", capsize=5, capthick=1.5, linewidth=2, markersize=8, color="C0")
     ax.set_xticks(range(len(x)))
     ax.set_xticklabels(x, fontsize=10)
     ax.set_xlabel("Watermark Strength (λ)")
-    ax.set_ylabel("Mean Watermark BER")
+    ax.set_ylabel("Watermark BER")
     ax.set_title("Clean Baseline BER vs λ\n(5000 server samples, 30 pretrain epochs)")
     ax.grid(True, alpha=0.3)
 
     # Accuracy subplot
     ax = axes[1]
+    for i, lam in enumerate(lambdas):
+        _, accs = lam_data[lam]
+        for a in accs:
+            ax.plot(i, a, "s", color="C2", markersize=4, alpha=0.5, zorder=3)
     means = [np.mean(lam_data[lam][1]) if lam_data[lam][1] else 0 for lam in lambdas]
     stds = [np.std(lam_data[lam][1]) if lam_data[lam][1] else 0 for lam in lambdas]
     ax.errorbar(range(len(x)), means, yerr=stds, fmt="s-", capsize=5, capthick=1.5, linewidth=2, markersize=8, color="C2")
     ax.set_xticks(range(len(x)))
     ax.set_xticklabels(x, fontsize=10)
     ax.set_xlabel("Watermark Strength (λ)")
-    ax.set_ylabel("Mean Server Accuracy (%)")
+    ax.set_ylabel("Server Accuracy (%)")
     ax.set_title("Clean Baseline Accuracy vs λ\n(5000 server samples, 30 pretrain epochs)")
     ax.grid(True, alpha=0.3)
 
@@ -221,17 +231,18 @@ def plot_lambda_scan():
     plt.close(fig)
     print(f"  Saved: {PLOTS_DIR / 'baseline_lambda_scan.png'}")
 
-    # Print table
+    # Print table with sample sizes
     print("\n  === LAMBDA SCAN (clean baseline, 5000/30) ===")
-    print(f"  {'λ':<8} {'Mean BER':<10} {'Std BER':<10} {'Mean Acc':<10} {'Std Acc':<10}")
-    print(f"  {'-'*8} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+    print(f"  {'λ':<8} {'N':>3} {'Mean BER':<10} {'Std BER':<10} {'Mean Acc':<10} {'Std Acc':<10}")
+    print(f"  {'-'*8} {'-'*3} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
     for lam in lambdas:
         bers, accs = lam_data[lam]
+        n = len(bers)
         mb = np.mean(bers) if bers else 0
         sb = np.std(bers) if bers else 0
         ma = np.mean(accs) if accs else 0
         sa = np.std(accs) if accs else 0
-        print(f"  {lam:<8} {mb:<10.4f} {sb:<10.4f} {ma:<10.2f} {sa:<10.2f}")
+        print(f"  {lam:<8} {n:>3} {mb:<10.4f} {sb:<10.4f} {ma:<10.2f} {sa:<10.2f}")
 
 
 if __name__ == "__main__":
