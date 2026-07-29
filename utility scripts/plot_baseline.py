@@ -39,11 +39,13 @@ def load_registry():
     return runs
 
 
-def find_runs(runs, server_samples, pretrain_epochs):
+def find_runs(runs, server_samples, pretrain_epochs, watermark_lambda=0.01):
     return [r for r in runs
             if r.get("server-private-samples") == server_samples
             and r.get("pretrain-epochs") == pretrain_epochs
-            and r.get("attacker-type", "none") == "none"]
+            and r.get("attacker-type", "none") == "none"
+            and r.get("attacker-fraction", 0) == 0
+            and abs(r.get("watermark-lambda", 0.01) - watermark_lambda) < 1e-9]
 
 
 def load_train_ber(run_id):
@@ -162,5 +164,76 @@ def main():
     print(f"  Saved: {PLOTS_DIR / 'baseline_acc.png'}")
 
 
+def plot_lambda_scan():
+    """Plot clean baseline BER and accuracy as function of λ (5000/30 config)."""
+    runs = load_registry()
+    lambdas = [0.005, 0.01, 0.05, 0.1, 0.25, 0.75]
+
+    lam_data = {}
+    for lam in lambdas:
+        matches = [r for r in runs
+                   if r.get("attacker-type", "none") == "none"
+                   and r.get("attacker-fraction", 0) == 0
+                   and r.get("server-private-samples") == 5000
+                   and r.get("pretrain-epochs") == 30
+                   and abs(r.get("watermark-lambda", 0) - lam) < 1e-9]
+        bers, accs = [], []
+        for m in matches:
+            rid = m["run_id"]
+            train = load_train_ber(rid)
+            server = load_server_acc(rid)
+            if train:
+                bers.append(np.mean(train[1]))
+            if server:
+                accs.append(np.mean(server[1]))
+        lam_data[lam] = (bers, accs)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # BER subplot
+    ax = axes[0]
+    x = [str(lam) for lam in lambdas]
+    means = [np.mean(lam_data[lam][0]) if lam_data[lam][0] else 0 for lam in lambdas]
+    stds = [np.std(lam_data[lam][0]) if lam_data[lam][0] else 0 for lam in lambdas]
+    ax.errorbar(range(len(x)), means, yerr=stds, fmt="o-", capsize=5, capthick=1.5, linewidth=2, markersize=8)
+    ax.set_xticks(range(len(x)))
+    ax.set_xticklabels(x, fontsize=10)
+    ax.set_xlabel("Watermark Strength (λ)")
+    ax.set_ylabel("Mean Watermark BER")
+    ax.set_title("Clean Baseline BER vs λ\n(5000 server samples, 30 pretrain epochs)")
+    ax.grid(True, alpha=0.3)
+
+    # Accuracy subplot
+    ax = axes[1]
+    means = [np.mean(lam_data[lam][1]) if lam_data[lam][1] else 0 for lam in lambdas]
+    stds = [np.std(lam_data[lam][1]) if lam_data[lam][1] else 0 for lam in lambdas]
+    ax.errorbar(range(len(x)), means, yerr=stds, fmt="s-", capsize=5, capthick=1.5, linewidth=2, markersize=8, color="C2")
+    ax.set_xticks(range(len(x)))
+    ax.set_xticklabels(x, fontsize=10)
+    ax.set_xlabel("Watermark Strength (λ)")
+    ax.set_ylabel("Mean Server Accuracy (%)")
+    ax.set_title("Clean Baseline Accuracy vs λ\n(5000 server samples, 30 pretrain epochs)")
+    ax.grid(True, alpha=0.3)
+
+    fig.suptitle("Effect of Watermark Strength on Clean Baseline", fontsize=14, y=1.02)
+    fig.tight_layout()
+    fig.savefig(PLOTS_DIR / "baseline_lambda_scan.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {PLOTS_DIR / 'baseline_lambda_scan.png'}")
+
+    # Print table
+    print("\n  === LAMBDA SCAN (clean baseline, 5000/30) ===")
+    print(f"  {'λ':<8} {'Mean BER':<10} {'Std BER':<10} {'Mean Acc':<10} {'Std Acc':<10}")
+    print(f"  {'-'*8} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+    for lam in lambdas:
+        bers, accs = lam_data[lam]
+        mb = np.mean(bers) if bers else 0
+        sb = np.std(bers) if bers else 0
+        ma = np.mean(accs) if accs else 0
+        sa = np.std(accs) if accs else 0
+        print(f"  {lam:<8} {mb:<10.4f} {sb:<10.4f} {ma:<10.2f} {sa:<10.2f}")
+
+
 if __name__ == "__main__":
     main()
+    plot_lambda_scan()
