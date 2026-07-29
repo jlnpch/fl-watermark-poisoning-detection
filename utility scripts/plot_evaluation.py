@@ -281,10 +281,21 @@ def main():
     plt.close(fig_acc)
     print(f"  Saved: {PLOTS_DIR / 'eval_accuracy.png'}")
 
+    # Short labels for x-axis readability
+    short_labels = [
+        "Baseline\n(λ=0.01)",
+        "LabelFlip\nsf=5, λ=0.01",
+        "SignFlip\nsf=5, λ=0.005",
+        "SignFlip\nsf=5, λ=0.01",
+        "SignFlip\nsf=5, λ=0.05",
+        "SignFlip\nsf=5, λ=0.10",
+        "SignFlip\nsf=5, λ=0.25",
+        "SignFlip\nsf=5, λ=0.75",
+    ]
+
     # --- Summary bar chart ---
-    fig_sum, axes_sum = plt.subplots(1, 3, figsize=(18, 5))
-    labels = [s["label"] for s in summary]
-    x = np.arange(len(labels))
+    fig_sum, axes_sum = plt.subplots(1, 3, figsize=(18, 6))
+    x = np.arange(len(short_labels))
 
     # d'-score
     dprimes = [s["d_prime"] for s in summary]
@@ -293,7 +304,7 @@ def main():
     axes_sum[0].set_ylabel("d'-score")
     axes_sum[0].set_title("Watermark Sensitivity (d')")
     axes_sum[0].set_xticks(x)
-    axes_sum[0].set_xticklabels(labels, fontsize=8)
+    axes_sum[0].set_xticklabels(short_labels, fontsize=7, rotation=30, ha="right")
     axes_sum[0].axhline(y=0, color="gray", linestyle="-", alpha=0.3)
     axes_sum[0].grid(True, alpha=0.3, axis="y")
 
@@ -304,7 +315,7 @@ def main():
     axes_sum[1].set_ylabel("ROC-AUC")
     axes_sum[1].set_title("Attack Detection (ROC-AUC)")
     axes_sum[1].set_xticks(x)
-    axes_sum[1].set_xticklabels(labels, fontsize=8)
+    axes_sum[1].set_xticklabels(short_labels, fontsize=7, rotation=30, ha="right")
     axes_sum[1].axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, label="random")
     axes_sum[1].legend()
     axes_sum[1].grid(True, alpha=0.3, axis="y")
@@ -315,7 +326,7 @@ def main():
     axes_sum[2].set_ylabel("Defense Accuracy")
     axes_sum[2].set_title("Exclusion Accuracy (TP+TN)/(all)")
     axes_sum[2].set_xticks(x)
-    axes_sum[2].set_xticklabels(labels, fontsize=8)
+    axes_sum[2].set_xticklabels(short_labels, fontsize=7, rotation=30, ha="right")
     axes_sum[2].set_ylim(0, 1)
     axes_sum[2].grid(True, alpha=0.3, axis="y")
 
