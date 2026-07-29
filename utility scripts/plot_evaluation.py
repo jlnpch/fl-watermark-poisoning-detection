@@ -24,7 +24,6 @@ PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Match the 8 configs from run_evaluation.sh + run_lambda_extra.sh
 CONFIGS = [
-    {"label": "Baseline\n(no attack, λ=0.01)", "attack": "none", "lam": 0.01, "attacker_frac": 0.0},
     {"label": "LabelFlip\n(scale=5, λ=0.01)", "attack": "label_flip", "lam": 0.01, "attacker_frac": 0.1},
     {"label": "SignFlip\n(scale=5, λ=0.005)", "attack": "sign_flip", "lam": 0.005, "attacker_frac": 0.1},
     {"label": "SignFlip\n(scale=5, λ=0.01)", "attack": "sign_flip", "lam": 0.01, "attacker_frac": 0.1},
@@ -149,11 +148,19 @@ def main():
     print(f"Found {len(runs)} runs in registry")
 
     n_configs = len(CONFIGS)
-    fig_ber, axes_ber = plt.subplots(2, 4, figsize=(24, 10))
+    n_cols = 4
+    n_rows = (n_configs + n_cols - 1) // n_cols
+    fig_ber, axes_ber = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 5 * n_rows))
     axes_ber = axes_ber.flatten()
 
-    fig_acc, axes_acc = plt.subplots(2, 4, figsize=(24, 10))
+    fig_acc, axes_acc = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 5 * n_rows))
     axes_acc = axes_acc.flatten()
+
+    # Hide unused subplots
+    for ax in axes_ber[n_configs:]:
+        ax.set_visible(False)
+    for ax in axes_acc[n_configs:]:
+        ax.set_visible(False)
 
     summary = []
 
@@ -294,7 +301,6 @@ def main():
 
     # Short labels for x-axis readability
     short_labels = [
-        "Baseline\n(λ=0.01)",
         "LabelFlip\nsf=5, λ=0.01",
         "SignFlip\nsf=5, λ=0.005",
         "SignFlip\nsf=5, λ=0.01",
@@ -313,7 +319,7 @@ def main():
     colors = ["C0" if np.isfinite(d) and d > 0 else "C3" for d in dprimes]
     axes_sum[0].bar(x, [d if np.isfinite(d) else 0 for d in dprimes], color=colors)
     axes_sum[0].set_ylabel("d'-score")
-    axes_sum[0].set_title("Watermark Sensitivity (d')")
+    axes_sum[0].set_title("d'-score")
     axes_sum[0].set_xticks(x)
     axes_sum[0].set_xticklabels(short_labels, fontsize=7, rotation=30, ha="right")
     axes_sum[0].axhline(y=0, color="gray", linestyle="-", alpha=0.3)
@@ -327,8 +333,6 @@ def main():
     axes_sum[1].set_xticks(x)
     axes_sum[1].set_xticklabels(short_labels, fontsize=7, rotation=30, ha="right")
     axes_sum[1].set_ylim(0, 1)
-    axes_sum[1].axhline(y=1.0, color="gray", linestyle="--", alpha=0.5, label="ideal")
-    axes_sum[1].legend()
     axes_sum[1].grid(True, alpha=0.3, axis="y")
 
     # Defense accuracy
