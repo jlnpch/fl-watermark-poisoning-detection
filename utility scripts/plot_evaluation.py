@@ -24,14 +24,14 @@ PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Match the 8 configs from run_evaluation.sh + run_lambda_extra.sh
 CONFIGS = [
-    {"label": "Baseline\n(no attack, λ=0.01)", "attack": "none", "lam": 0.01},
-    {"label": "LabelFlip\n(scale=5, λ=0.01)", "attack": "label_flip", "lam": 0.01},
-    {"label": "SignFlip\n(scale=5, λ=0.005)", "attack": "sign_flip", "lam": 0.005},
-    {"label": "SignFlip\n(scale=5, λ=0.01)", "attack": "sign_flip", "lam": 0.01},
-    {"label": "SignFlip\n(scale=5, λ=0.05)", "attack": "sign_flip", "lam": 0.05},
-    {"label": "SignFlip\n(scale=5, λ=0.10)", "attack": "sign_flip", "lam": 0.10},
-    {"label": "SignFlip\n(scale=5, λ=0.25)", "attack": "sign_flip", "lam": 0.25},
-    {"label": "SignFlip\n(scale=5, λ=0.75)", "attack": "sign_flip", "lam": 0.75},
+    {"label": "Baseline\n(no attack, λ=0.01)", "attack": "none", "lam": 0.01, "attacker_frac": 0.0},
+    {"label": "LabelFlip\n(scale=5, λ=0.01)", "attack": "label_flip", "lam": 0.01, "attacker_frac": 0.1},
+    {"label": "SignFlip\n(scale=5, λ=0.005)", "attack": "sign_flip", "lam": 0.005, "attacker_frac": 0.1},
+    {"label": "SignFlip\n(scale=5, λ=0.01)", "attack": "sign_flip", "lam": 0.01, "attacker_frac": 0.1},
+    {"label": "SignFlip\n(scale=5, λ=0.05)", "attack": "sign_flip", "lam": 0.05, "attacker_frac": 0.1},
+    {"label": "SignFlip\n(scale=5, λ=0.10)", "attack": "sign_flip", "lam": 0.10, "attacker_frac": 0.1},
+    {"label": "SignFlip\n(scale=5, λ=0.25)", "attack": "sign_flip", "lam": 0.25, "attacker_frac": 0.1},
+    {"label": "SignFlip\n(scale=5, λ=0.75)", "attack": "sign_flip", "lam": 0.75, "attacker_frac": 0.1},
 ]
 
 
@@ -49,13 +49,18 @@ def load_registry():
     return runs
 
 
-def find_matching_runs(runs, attack_type, lam):
-    """Find runs matching attack type and lambda."""
-    return [r for r in runs
-            if r.get("attacker-type") == attack_type
-            and abs(r.get("watermark-lambda", 0) - lam) < 1e-9
-            and r.get("server-private-samples") == 5000
-            and r.get("pretrain-epochs") == 30]
+def find_matching_runs(runs, attack_type, lam, attacker_frac=0.1):
+    """Find up to 3 runs matching attack type, lambda, and attacker fraction."""
+    matched = [r for r in runs
+               if r.get("attacker-type") == attack_type
+               and abs(r.get("watermark-lambda", 0) - lam) < 1e-9
+               and r.get("server-private-samples") == 5000
+               and r.get("pretrain-epochs") == 30
+               and abs(r.get("attacker-fraction", 0) - attacker_frac) < 1e-9
+               and Path(RESULTS_DIR / f"run_{r['run_id']}_train.csv").exists()]
+    # Take first 3 runs (oldest by timestamp)
+    matched.sort(key=lambda r: r.get("timestamp", ""))
+    return matched[:3]
 
 
 def load_train_data(run_id):
@@ -156,7 +161,8 @@ def main():
         label = cfg["label"]
         attack = cfg["attack"]
         lam = cfg["lam"]
-        matches = find_matching_runs(runs, attack, lam)
+        attacker_frac = cfg.get("attacker_frac", 0.1)
+        matches = find_matching_runs(runs, attack, lam, attacker_frac)
         print(f"\n  [{idx+1}] {attack} λ={lam}: {len(matches)} runs found")
 
         # Collect honest and attacker BER per round across reps
@@ -190,22 +196,24 @@ def main():
 
         # --- BER evolution plot ---
         ax = axes_ber[idx]
-        common_rounds = sorted(set(honest_ber_by_round.keys()) & set(attacker_ber_by_round.keys()))
+        honest_rounds = sorted(honest_ber_by_round.keys())
 
-        if common_rounds:
-            h_means = [np.mean(honest_ber_by_round[r]) for r in common_rounds]
-            h_stds = [np.std(honest_ber_by_round[r]) for r in common_rounds]
-            a_means = [np.mean(attacker_ber_by_round[r]) for r in common_rounds]
-            a_stds = [np.std(attacker_ber_by_round[r]) for r in common_rounds]
+        if honest_rounds:
+            h_means = [np.mean(honest_ber_by_round[r]) for r in honest_rounds]
+            h_stds = [np.std(honest_ber_by_round[r]) for r in honest_rounds]
 
-            ax.plot(common_rounds, h_means, "C0-", linewidth=2, label="Honest")
-            ax.fill_between(common_rounds,
+            ax.plot(honest_rounds, h_means, "C0-", linewidth=2, label="Honest")
+            ax.fill_between(honest_rounds,
                             [m - s for m, s in zip(h_means, h_stds)],
                             [m + s for m, s in zip(h_means, h_stds)],
                             color="C0", alpha=0.15)
-            if any(a_means):  # only plot attacker if present
-                ax.plot(common_rounds, a_means, "C3--", linewidth=2, label="Attacker")
-                ax.fill_between(common_rounds,
+
+            if attacker_ber_by_round:
+                common = sorted(set(honest_rounds) & set(attacker_ber_by_round.keys()))
+                a_means = [np.mean(attacker_ber_by_round[r]) for r in common]
+                a_stds = [np.std(attacker_ber_by_round[r]) for r in common]
+                ax.plot(common, a_means, "C3--", linewidth=2, label="Attacker")
+                ax.fill_between(common,
                                 [max(0, m - s) for m, s in zip(a_means, a_stds)],
                                 [m + s for m, s in zip(a_means, a_stds)],
                                 color="C3", alpha=0.15)
@@ -247,9 +255,10 @@ def main():
         # --- d' and AUC across all rounds ---
         all_honest_bers = []
         all_attacker_bers = []
-        for rnd in common_rounds:
+        for rnd in honest_rounds:
             all_honest_bers.extend(honest_ber_by_round[rnd])
-            all_attacker_bers.extend(attacker_ber_by_round[rnd])
+            if rnd in attacker_ber_by_round:
+                all_attacker_bers.extend(attacker_ber_by_round[rnd])
 
         dprime = compute_dprime(all_honest_bers, all_attacker_bers)
         auc = compute_auc(all_honest_bers, all_attacker_bers)
