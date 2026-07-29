@@ -176,6 +176,7 @@ def plot_lambda_scan():
                    and r.get("attacker-fraction", 0) == 0
                    and r.get("server-private-samples") == 5000
                    and r.get("pretrain-epochs") == 30
+                   and r.get("client-samples") == 4000
                    and abs(r.get("watermark-lambda", 0) - lam) < 1e-9]
         bers, accs = [], []
         for m in matches:
@@ -186,8 +187,6 @@ def plot_lambda_scan():
                 bers.append(np.mean(train[1]))
             if server:
                 accs.append(np.mean(server[1]))
-            if len(bers) >= 3:
-                break
         lam_data[lam] = (bers, accs)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
