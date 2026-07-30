@@ -244,6 +244,54 @@ def plot_lambda_scan():
         print(f"  {lam:<8} {n:>3} {mb:<10.4f} {sb:<10.4f} {ma:<10.2f} {sa:<10.2f}")
 
 
+def plot_lambda_ber_evolution():
+    """Plot BER evolution over FL rounds for all λ on one graph (5000/30/4000 config)."""
+    runs = load_registry()
+    lambdas = [0.005, 0.01, 0.05, 0.1, 0.25, 0.75]
+    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(lambdas)))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for lam, color in zip(lambdas, colors):
+        matches = [r for r in runs
+                   if r.get("attacker-type", "none") == "none"
+                   and r.get("attacker-fraction", 0) == 0
+                   and r.get("server-private-samples") == 5000
+                   and r.get("pretrain-epochs") == 30
+                   and r.get("client-samples") == 4000
+                   and abs(r.get("watermark-lambda", 0) - lam) < 1e-9]
+        rep_data = []
+        for m in matches:
+            d = load_train_ber(m["run_id"])
+            if d:
+                rep_data.append(d)
+        if not rep_data:
+            continue
+        min_r = max(r[0][0] for r in rep_data)
+        max_r = min(r[0][-1] for r in rep_data)
+        cr = list(range(min_r, max_r + 1))
+        mat = interpolate(cr, rep_data)
+        mean = np.nanmean(mat, axis=0)
+        std = np.nanstd(mat, axis=0)
+        ax.plot(cr, mean, "-", color=color, linewidth=2, label=f"λ={lam}")
+        ax.fill_between(cr, mean - std, mean + std, color=color, alpha=0.15)
+
+    ax.set_xlabel("FL Round", fontsize=12)
+    ax.set_ylabel("Watermark BER", fontsize=12)
+    ax.set_title("Clean Baseline BER Evolution Across FL Rounds\n(5000 server samples, 30 pretrain epochs)", fontsize=13)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(-0.02, 0.5)
+    ax.legend(fontsize=10, loc="upper right")
+
+    fig.tight_layout()
+    path = PLOTS_DIR / "baseline_lambda_ber_evolution.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {path}")
+    print(f"  (lambdas: {lambdas})")
+
+
 if __name__ == "__main__":
     main()
     plot_lambda_scan()
+    plot_lambda_ber_evolution()
