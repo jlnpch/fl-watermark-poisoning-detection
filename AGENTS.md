@@ -132,18 +132,25 @@ results/plots/
 ├── baseline/           # No-attack baseline sweep results
 │   ├── baseline_ber.png           # BER evolution (4 server sizes × 3 pretrain epochs)
 │   ├── baseline_acc.png           # Accuracy evolution
-│   ├── baseline_acc_pretrain*.png # Per-pretrain epoch breakdowns
-│   ├── baseline_ber_pretrain*.png
-│   └── ...                        # IID vs non-IID, lambda sweep, etc.
-├── individual_attacks/ # Single-attack analysis
-│   ├── label_flip/     # Label flip at different scales
-│   ├── sign_flip/      # Sign flip at different scales
-│   └── noise/          # Gaussian noise at different scales
-└── defense_evaluation/ # Semi-fragility evaluation (6 configs × 3 reps)
+│   ├── baseline_lambda_scan.png   # Clean baseline BER/acc vs λ (N=10 per λ)
+│   └── baseline_lambda_ber_evolution.png  # BER over rounds, all λ overlaid
+└── defense_evaluation/ # Semi-fragility evaluation (7 configs × 3 reps)
     ├── eval_ber_evolution.png    # Honest vs attacker BER per config
     ├── eval_accuracy.png         # Server accuracy per config
-    └── eval_defense_summary.png  # d', ROC-AUC, defense accuracy
+    └── eval_defense_summary.png  # d', detection rate, defense accuracy
 ```
+
+### Lambda consistency study (N=10 per λ)
+
+- Clean baselines (no attack, 5000/30 config) at `client-samples=4000`:
+  λ ∈ {0.005, 0.01, 0.05, 0.1, 0.25, 0.75}, **10 runs each** (5 from the
+  `20260729` consistent batch + 5 from the `20260730` batch).
+- Conclusion: **no BER–λ trend** (corr(log₁₀λ, BER) ≈ -0.07, ANOVA R² ≈ 0.06).
+  Mean BER clusters in 0.11–0.15; accuracy flat at 73.2–73.5%.
+- **IMPORTANT**: `plot_baseline.py` excludes the `20260730_*` runs from the
+  sweep curves (`baseline_ber.png`/`baseline_acc.png`) via `SWEEP_EXCLUDE_PREFIX`
+  so those stay pinned to the pre-study data. The lambda scan and evolution plots
+  use all 10 runs per λ.
 
 ## Sweep Script Template
 
@@ -201,25 +208,28 @@ Notes:
 7. **Run registry**: `run_registry.jsonl` is appended to, never overwritten. If the file doesn't
    exist at the start of a run, it is created from scratch. Old entries are preserved across runs
    as long as the file persists.
+8. **Registry duplicates**: some run_ids appear multiple times in `run_registry.jsonl` (with
+   different `watermark-lambda` values). Dedup by `run_id` before counting runs; the train CSV
+   filename is derived from the run_id and is the source of truth.
 
 ## Baseline Sweep
 
 `utility scripts/run_sweep.sh` runs a baseline hyperparameter sweep:
 - Server private samples: 500, 2500, 5000, 10000
 - Pretrain epochs: 10, 30, 50
-- 3 repetitions per pair (36 total runs)
+- 3 repetitions per pair (37 total runs)
 - 50 FL rounds, IID, no attacks, 10 supernodes
 
 `utility scripts/plot_baseline.py` generates BER and accuracy evolution plots from sweep results.
-Output: `results/plots/baseline/baseline_ber.png` and `baseline_acc.png`.
+Output: `results/plots/baseline/baseline_ber.png` and `baseline_acc.png` (plus the λ scan and
+BER-evolution plots; the latter two include the N=10 lambda consistency study).
 
 ## Semi-Fragility Evaluation
 
 `utility scripts/run_evaluation.sh` evaluates watermark detection under different attacks:
-- Baseline (no attack)
-- Label flip (scale=5)
-- Sign flip (scale=5, λ=0.005/0.01/0.05/0.10)
-- 3 repetitions per config (18 total runs)
+- Label flip (scale=5, λ=0.01)
+- Sign flip (scale=5, λ=0.005/0.01/0.05/0.10/0.25/0.75)
+- 3 repetitions per config (7 configs, 21 runs)
 - 50 FL rounds, IID, 10 supernodes, BER threshold 0.25
 
 `utility scripts/plot_evaluation.py` generates defense analysis plots.
