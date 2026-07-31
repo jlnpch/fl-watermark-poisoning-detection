@@ -39,12 +39,18 @@ def load_registry():
     return runs
 
 
+SWEEP_EXCLUDE_PREFIX = "20260730"
+
 def find_runs(runs, server_samples, pretrain_epochs, watermark_lambda=0.01):
+    # Sweep plots use the pre-lambda-consistency runs only (client-samples=4500
+    # original sweep + 20260729 consistent batch at 4000). The 20260730 batch
+    # was added for the N=10 lambda study and must not change the sweep curves.
     return [r for r in runs
             if r.get("server-private-samples") == server_samples
             and r.get("pretrain-epochs") == pretrain_epochs
             and r.get("attacker-type", "none") == "none"
             and r.get("attacker-fraction", 0) == 0
+            and r.get("run_id", "").startswith(SWEEP_EXCLUDE_PREFIX) is False
             and abs(r.get("watermark-lambda", 0.01) - watermark_lambda) < 1e-9]
 
 
