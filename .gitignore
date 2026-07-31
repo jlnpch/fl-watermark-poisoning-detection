@@ -3,3 +3,4 @@ __pycache__/
 *.egg-info/
 dist/
 *.pt
+lambda_sweep_50ep.log
