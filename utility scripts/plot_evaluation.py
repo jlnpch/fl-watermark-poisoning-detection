@@ -6,6 +6,7 @@ Generates:
 2. eval_defense_summary.png — Exclusion accuracy, d'-score, BER separation per config
 """
 
+import argparse
 import csv
 import json
 import sys
@@ -19,8 +20,19 @@ import numpy as np
 from scipy import stats
 
 RESULTS_DIR = Path("results")
-PLOTS_DIR = RESULTS_DIR / "plots" / "defense_evaluation"
-PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Semi-fragility defense evaluation plots")
+    parser.add_argument("--pretrain-epochs", type=int, default=30,
+                        help="Pretrain epochs of the evaluated config (default: 30)")
+    return parser.parse_args()
+
+
+def config_dir(pretrain_epochs):
+    d = RESULTS_DIR / "plots" / f"5000_{pretrain_epochs}ep"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 # Match the 8 configs from run_evaluation.sh + run_lambda_extra.sh
 CONFIGS = [
@@ -48,13 +60,13 @@ def load_registry():
     return runs
 
 
-def find_matching_runs(runs, attack_type, lam, attacker_frac=0.1):
+def find_matching_runs(runs, attack_type, lam, attacker_frac=0.1, pretrain_epochs=30):
     """Find up to 3 runs matching attack type, lambda, and attacker fraction."""
     matched = [r for r in runs
                if r.get("attacker-type") == attack_type
                and abs(r.get("watermark-lambda", 0) - lam) < 1e-9
                and r.get("server-private-samples") == 5000
-               and r.get("pretrain-epochs") == 30
+               and r.get("pretrain-epochs") == pretrain_epochs
                and abs(r.get("attacker-fraction", 0) - attacker_frac) < 1e-9
                and Path(RESULTS_DIR / f"run_{r['run_id']}_train.csv").exists()]
     # Take first 3 runs (oldest by timestamp)
@@ -143,9 +155,10 @@ def compute_exclusion_accuracy(train_data):
     return tp, fp, tn, fn, acc
 
 
-def main():
+def main(pretrain_epochs=30):
     runs = load_registry()
     print(f"Found {len(runs)} runs in registry")
+    plots_dir = config_dir(pretrain_epochs)
 
     n_configs = len(CONFIGS)
     n_cols = 4
@@ -169,7 +182,7 @@ def main():
         attack = cfg["attack"]
         lam = cfg["lam"]
         attacker_frac = cfg.get("attacker_frac", 0.1)
-        matches = find_matching_runs(runs, attack, lam, attacker_frac)
+        matches = find_matching_runs(runs, attack, lam, attacker_frac, pretrain_epochs)
         print(f"\n  [{idx+1}] {attack} λ={lam}: {len(matches)} runs found")
 
         # Collect honest and attacker BER per round across reps
@@ -287,17 +300,17 @@ def main():
         })
         print(f"    d'={dprime:.4f} AUC={auc:.4f} defense_acc={mean_acc_def:.2%}")
 
-    fig_ber.suptitle("BER Evolution — Honest vs Attacker Clients (per λ & attack)", fontsize=14, y=1.02)
+    fig_ber.suptitle(f"BER Evolution — Honest vs Attacker Clients ({pretrain_epochs} pretrain epochs)", fontsize=14, y=1.02)
     fig_ber.tight_layout()
-    fig_ber.savefig(PLOTS_DIR / "eval_ber_evolution.png", dpi=150, bbox_inches="tight")
+    fig_ber.savefig(plots_dir / "eval_ber_evolution.png", dpi=150, bbox_inches="tight")
     plt.close(fig_ber)
-    print(f"\n  Saved: {PLOTS_DIR / 'eval_ber_evolution.png'}")
+    print(f"\n  Saved: {plots_dir / 'eval_ber_evolution.png'}")
 
-    fig_acc.suptitle("Server Accuracy — per λ & attack config", fontsize=14, y=1.02)
+    fig_acc.suptitle(f"Server Accuracy — per λ & attack config ({pretrain_epochs} pretrain epochs)", fontsize=14, y=1.02)
     fig_acc.tight_layout()
-    fig_acc.savefig(PLOTS_DIR / "eval_accuracy.png", dpi=150, bbox_inches="tight")
+    fig_acc.savefig(plots_dir / "eval_accuracy.png", dpi=150, bbox_inches="tight")
     plt.close(fig_acc)
-    print(f"  Saved: {PLOTS_DIR / 'eval_accuracy.png'}")
+    print(f"  Saved: {plots_dir / 'eval_accuracy.png'}")
 
     # Short labels for x-axis readability
     short_labels = [
@@ -345,11 +358,11 @@ def main():
     axes_sum[2].set_ylim(0, 1)
     axes_sum[2].grid(True, alpha=0.3, axis="y")
 
-    fig_sum.suptitle("Semi-Fragility Evaluation Summary", fontsize=14, y=1.02)
+    fig_sum.suptitle(f"Semi-Fragility Evaluation Summary (5000 samples, {pretrain_epochs} pretrain epochs)", fontsize=14, y=1.02)
     fig_sum.tight_layout()
-    fig_sum.savefig(PLOTS_DIR / "eval_defense_summary.png", dpi=150, bbox_inches="tight")
+    fig_sum.savefig(plots_dir / "eval_defense_summary.png", dpi=150, bbox_inches="tight")
     plt.close(fig_sum)
-    print(f"  Saved: {PLOTS_DIR / 'eval_defense_summary.png'}")
+    print(f"  Saved: {plots_dir / 'eval_defense_summary.png'}")
 
     # Print summary table
     print("\n  === SUMMARY TABLE ===")
@@ -363,4 +376,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(pretrain_epochs=args.pretrain_epochs)

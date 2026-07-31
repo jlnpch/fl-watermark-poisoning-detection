@@ -5,6 +5,7 @@
 - baseline_acc.png: same layout for accuracy
 """
 
+import argparse
 import csv
 import json
 import sys
@@ -17,12 +18,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 RESULTS_DIR = Path("results")
-PLOTS_DIR = RESULTS_DIR / "plots" / "baseline"
-PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+BASELINE_PLOTS_DIR = RESULTS_DIR / "plots" / "baseline"
+BASELINE_PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 SERVER_SIZES = [500, 2500, 5000, 10000]
 PRETRAIN_EPOCHS = [10, 30, 50]
 EPOCH_COLORS = {10: "C0", 30: "C1", 50: "C2"}
+
+LAMBDAS = [0.005, 0.01, 0.05, 0.1, 0.25, 0.75]
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Baseline sweep + lambda scan plots")
+    parser.add_argument("--pretrain-epochs", type=int, default=30,
+                        help="Pretrain epochs of the lambda-scan config (default: 30)")
+    return parser.parse_args()
 
 
 def load_registry():
@@ -134,9 +144,9 @@ def main():
     axes_ber[0].set_ylabel("Watermark BER", fontsize=12)
     fig_ber.suptitle("Baseline BER — 3 pretrain epoch settings × 4 server sizes", fontsize=14, y=1.02)
     fig_ber.tight_layout()
-    fig_ber.savefig(PLOTS_DIR / "baseline_ber.png", dpi=150, bbox_inches="tight")
+    fig_ber.savefig(BASELINE_PLOTS_DIR / "baseline_ber.png", dpi=150, bbox_inches="tight")
     plt.close(fig_ber)
-    print(f"  Saved: {PLOTS_DIR / 'baseline_ber.png'}")
+    print(f"  Saved: {BASELINE_PLOTS_DIR / 'baseline_ber.png'}")
 
     # --- Accuracy figure ---
     fig_acc, axes_acc = plt.subplots(1, 4, figsize=(22, 5), sharey=True)
@@ -165,15 +175,17 @@ def main():
     axes_acc[0].set_ylabel("Server Accuracy (%)", fontsize=12)
     fig_acc.suptitle("Baseline Accuracy — 3 pretrain epoch settings × 4 server sizes", fontsize=14, y=1.02)
     fig_acc.tight_layout()
-    fig_acc.savefig(PLOTS_DIR / "baseline_acc.png", dpi=150, bbox_inches="tight")
+    fig_acc.savefig(BASELINE_PLOTS_DIR / "baseline_acc.png", dpi=150, bbox_inches="tight")
     plt.close(fig_acc)
-    print(f"  Saved: {PLOTS_DIR / 'baseline_acc.png'}")
+    print(f"  Saved: {BASELINE_PLOTS_DIR / 'baseline_acc.png'}")
 
 
-def plot_lambda_scan():
-    """Plot clean baseline BER and accuracy as function of λ (5000/30 config)."""
+def plot_lambda_scan(pretrain_epochs=30):
+    """Plot clean baseline BER and accuracy as function of λ (5000/{ep} config)."""
     runs = load_registry()
-    lambdas = [0.005, 0.01, 0.05, 0.1, 0.25, 0.75]
+    lambdas = LAMBDAS
+    config_dir = RESULTS_DIR / "plots" / f"5000_{pretrain_epochs}ep"
+    config_dir.mkdir(parents=True, exist_ok=True)
 
     lam_data = {}
     for lam in lambdas:
@@ -181,7 +193,7 @@ def plot_lambda_scan():
                    if r.get("attacker-type", "none") == "none"
                    and r.get("attacker-fraction", 0) == 0
                    and r.get("server-private-samples") == 5000
-                   and r.get("pretrain-epochs") == 30
+                   and r.get("pretrain-epochs") == pretrain_epochs
                    and r.get("client-samples") == 4000
                    and abs(r.get("watermark-lambda", 0) - lam) < 1e-9]
         bers, accs = [], []
@@ -211,7 +223,7 @@ def plot_lambda_scan():
     ax.set_xticklabels(x, fontsize=10)
     ax.set_xlabel("Watermark Strength (λ)")
     ax.set_ylabel("Watermark BER")
-    ax.set_title("Clean Baseline BER vs λ\n(5000 server samples, 30 pretrain epochs)")
+    ax.set_title(f"Clean Baseline BER vs λ\n(5000 server samples, {pretrain_epochs} pretrain epochs)")
     ax.grid(True, alpha=0.3)
 
     # Accuracy subplot
@@ -227,17 +239,17 @@ def plot_lambda_scan():
     ax.set_xticklabels(x, fontsize=10)
     ax.set_xlabel("Watermark Strength (λ)")
     ax.set_ylabel("Server Accuracy (%)")
-    ax.set_title("Clean Baseline Accuracy vs λ\n(5000 server samples, 30 pretrain epochs)")
+    ax.set_title(f"Clean Baseline Accuracy vs λ\n(5000 server samples, {pretrain_epochs} pretrain epochs)")
     ax.grid(True, alpha=0.3)
 
     fig.suptitle("Effect of Watermark Strength on Clean Baseline", fontsize=14, y=1.02)
     fig.tight_layout()
-    fig.savefig(PLOTS_DIR / "baseline_lambda_scan.png", dpi=150, bbox_inches="tight")
+    fig.savefig(config_dir / "baseline_lambda_scan.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"  Saved: {PLOTS_DIR / 'baseline_lambda_scan.png'}")
+    print(f"  Saved: {config_dir / 'baseline_lambda_scan.png'}")
 
     # Print table with sample sizes
-    print("\n  === LAMBDA SCAN (clean baseline, 5000/30) ===")
+    print(f"\n  === LAMBDA SCAN (clean baseline, 5000/{pretrain_epochs}) ===")
     print(f"  {'λ':<8} {'N':>3} {'Mean BER':<10} {'Std BER':<10} {'Mean Acc':<10} {'Std Acc':<10}")
     print(f"  {'-'*8} {'-'*3} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
     for lam in lambdas:
@@ -250,11 +262,13 @@ def plot_lambda_scan():
         print(f"  {lam:<8} {n:>3} {mb:<10.4f} {sb:<10.4f} {ma:<10.2f} {sa:<10.2f}")
 
 
-def plot_lambda_ber_evolution():
-    """Plot BER evolution over FL rounds for all λ on one graph (5000/30/4000 config)."""
+def plot_lambda_ber_evolution(pretrain_epochs=30):
+    """Plot BER evolution over FL rounds for all λ on one graph (5000/{ep}/4000 config)."""
     runs = load_registry()
-    lambdas = [0.005, 0.01, 0.05, 0.1, 0.25, 0.75]
+    lambdas = LAMBDAS
     colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(lambdas)))
+    config_dir = RESULTS_DIR / "plots" / f"5000_{pretrain_epochs}ep"
+    config_dir.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -263,7 +277,7 @@ def plot_lambda_ber_evolution():
                    if r.get("attacker-type", "none") == "none"
                    and r.get("attacker-fraction", 0) == 0
                    and r.get("server-private-samples") == 5000
-                   and r.get("pretrain-epochs") == 30
+                   and r.get("pretrain-epochs") == pretrain_epochs
                    and r.get("client-samples") == 4000
                    and abs(r.get("watermark-lambda", 0) - lam) < 1e-9]
         rep_data = []
@@ -284,13 +298,13 @@ def plot_lambda_ber_evolution():
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Watermark BER", fontsize=12)
-    ax.set_title("Clean Baseline BER Evolution Across FL Rounds\n(5000 server samples, 30 pretrain epochs)", fontsize=13)
+    ax.set_title(f"Clean Baseline BER Evolution Across FL Rounds\n(5000 server samples, {pretrain_epochs} pretrain epochs)", fontsize=13)
     ax.grid(True, alpha=0.3)
     ax.set_ylim(-0.02, 0.5)
     ax.legend(fontsize=10, loc="upper right")
 
     fig.tight_layout()
-    path = PLOTS_DIR / "baseline_lambda_ber_evolution.png"
+    path = config_dir / "baseline_lambda_ber_evolution.png"
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved: {path}")
@@ -298,6 +312,7 @@ def plot_lambda_ber_evolution():
 
 
 if __name__ == "__main__":
+    args = parse_args()
     main()
-    plot_lambda_scan()
-    plot_lambda_ber_evolution()
+    plot_lambda_scan(pretrain_epochs=args.pretrain_epochs)
+    plot_lambda_ber_evolution(pretrain_epochs=args.pretrain_epochs)

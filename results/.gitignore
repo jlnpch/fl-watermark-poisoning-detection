@@ -1,4 +1,4 @@
 *
 !plots/
-!plots/*
+!plots/**
 !.gitignore
