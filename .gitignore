@@ -4,3 +4,11 @@ __pycache__/
 dist/
 *.pt
 lambda_sweep_50ep.log
+defense_50ep.log
+final_fixes.log
+label_fix.log
+lambda_baseline.log
+lambda_baseline_extra.log
+lambda_consistent.log
+lambda_more.log
+lambda_sweep_50ep.log
