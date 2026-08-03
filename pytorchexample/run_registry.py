@@ -36,6 +36,7 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "pretrain-epochs",
         "server-private-samples",
         "client-samples",
+        "pretrain-only",
     ):
         val = config.get(key)
         if val is not None:

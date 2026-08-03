@@ -260,3 +260,24 @@ clean baselines of a config, saving to `results/plots/5000_{N}ep/pretrain_evolut
 
 NOTE: only runs started **after** this logging was added produce
 `run_*_pretrain.csv`; existing runs have no pretrain CSV.
+
+## Pretrain-only runs (36) — KEY FINDING
+
+Ran 6 λ × 3 reps × {30,50}ep with `pretrain-only=true` (skips FL rounds;
+`utility scripts/run_pretrain_only.sh`, ~2 min each → `pretrain_only.log`).
+Plots in `results/plots/5000_{N}ep/pretrain_evolution.png`.
+
+**BER = 0.0 after epoch 1 at EVERY λ (0.005–0.75), both 30ep and 50ep.**
+The watermark signs are fully embedded in the first pretrain epoch regardless
+of λ; λ only controls the soft margin (watermark-loss decay speed), not the
+BER. Mechanism: z = P·W and P·Pᵀ ≈ num_params·I (5120), so the regularization
+effective learning rate in watermark-subspace is amplified ~5120×, driving the
+signs to b_target almost immediately. This explains why no BER–λ trend was seen
+in the defense evals — semifragility comes from FL rounds eroding the watermark,
+not from λ-limited embedding during pretraining.
+
+Registry: `log_run` whitelists config keys and initially omitted `pretrain-only`;
+the key was added to `run_registry.py` and the 36 run_ids prefixed `20260803`
+were backfilled with `"pretrain-only": true` (detected via pretrain CSV existing
+with no server CSV). Use `r.get("pretrain-only", False)` to filter them out of
+FL-based plots.
