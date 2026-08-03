@@ -129,28 +129,28 @@ Every run generates a unique run_id (timestamp). The train CSV is the source for
 
 ```
 results/plots/
-├── baseline/           # No-attack baseline sweep results
+├── baseline/           # No-attack baseline sweep (pretrain-epochs × dataset size)
 │   ├── baseline_ber.png           # BER evolution (4 server sizes × 3 pretrain epochs)
-│   ├── baseline_acc.png           # Accuracy evolution
+│   └── baseline_acc.png           # Accuracy evolution
+├── 5000_30ep/          # Config: 5000 samples, 30 pretrain epochs
 │   ├── baseline_lambda_scan.png   # Clean baseline BER/acc vs λ (N=10 per λ)
-│   └── baseline_lambda_ber_evolution.png  # BER over rounds, all λ overlaid
-└── defense_evaluation/ # Semi-fragility evaluation (7 configs × 3 reps)
-    ├── eval_ber_evolution.png    # Honest vs attacker BER per config
-    ├── eval_accuracy.png         # Server accuracy per config
-    └── eval_defense_summary.png  # d', detection rate, defense accuracy
+│   ├── baseline_lambda_ber_evolution.png  # BER over rounds, all λ overlaid
+│   ├── eval_ber_evolution.png     # Honest vs attacker BER per config
+│   ├── eval_accuracy.png          # Server accuracy per config
+│   ├── eval_defense_summary.png   # d', detection rate, defense accuracy
+│   └── results_tables.txt
+└── 5000_50ep/          # Config: 5000 samples, 50 pretrain epochs
+    ├── baseline_lambda_scan.png   # N=5 per λ
+    ├── baseline_lambda_ber_evolution.png
+    ├── eval_ber_evolution.png
+    ├── eval_accuracy.png
+    ├── eval_defense_summary.png
+    └── results_tables.txt
 ```
 
-### Lambda consistency study (N=10 per λ)
-
-- Clean baselines (no attack, 5000/30 config) at `client-samples=4000`:
-  λ ∈ {0.005, 0.01, 0.05, 0.1, 0.25, 0.75}, **10 runs each** (5 from the
-  `20260729` consistent batch + 5 from the `20260730` batch).
-- Conclusion: **no BER–λ trend** (corr(log₁₀λ, BER) ≈ -0.07, ANOVA R² ≈ 0.06).
-  Mean BER clusters in 0.11–0.15; accuracy flat at 73.2–73.5%.
-- **IMPORTANT**: `plot_baseline.py` excludes the `20260730_*` runs from the
-  sweep curves (`baseline_ber.png`/`baseline_acc.png`) via `SWEEP_EXCLUDE_PREFIX`
-  so those stay pinned to the pre-study data. The lambda scan and evolution plots
-  use all 10 runs per λ.
+Plot scripts take `--pretrain-epochs N` and write to `results/plots/5000_{N}ep/`.
+The `baseline/` sweep curves are pinned via `SWEEP_EXCLUDE_PREFIXES`
+(`("20260730", "20260731")`) so later lambda-study batches don't change them.
 
 ## Sweep Script Template
 
@@ -226,11 +226,20 @@ BER-evolution plots; the latter two include the N=10 lambda consistency study).
 
 ## Semi-Fragility Evaluation
 
-`utility scripts/run_evaluation.sh` evaluates watermark detection under different attacks:
+`utility scripts/run_evaluation.sh` evaluates watermark detection under different attacks
+(for 5000/30 config):
 - Label flip (scale=5, λ=0.01)
 - Sign flip (scale=5, λ=0.005/0.01/0.05/0.10/0.25/0.75)
 - 3 repetitions per config (7 configs, 21 runs)
 - 50 FL rounds, IID, 10 supernodes, BER threshold 0.25
 
 `utility scripts/plot_evaluation.py` generates defense analysis plots.
-Output: `results/plots/defense_evaluation/eval_*.png`
+Output: `results/plots/5000_30ep/eval_*.png`
+
+## 5000/50 config
+
+- `utility scripts/run_lambda_sweep_50ep.sh` — clean baseline lambda sweep (6 λ × 5 reps = 30 runs)
+- `utility scripts/run_defense_50ep.sh` — defense evaluation (1 label_flip + 6 sign_flip × 3 reps = 21 runs)
+- Plots: `results/plots/5000_50ep/*.png`
+- Results (N=5 sweep, N=3 defense): no BER–λ trend; defense accuracy uniformly higher
+  than 30ep (94.0–99.2% vs 89.8–97.8%).
