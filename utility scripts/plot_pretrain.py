@@ -113,6 +113,15 @@ def main():
     metrics = [("watermark_loss", "Watermark regularization loss", "C3"),
                ("task_loss", "Task (primal) loss", "C0"),
                ("watermark_ber", "Watermark BER", "C1")]
+    log_metrics = {"watermark_loss", "task_loss"}
+
+    for ax, (mname, label, mcolor) in zip(axes, metrics):
+        ax.set_xlabel("Pretrain Epoch", fontsize=11)
+        ax.set_ylabel(label, fontsize=11)
+        ax.set_title(f"{label} during pretraining\n(5000 samples, {ep} epochs)", fontsize=11)
+        ax.grid(True, alpha=0.3)
+        if mname in log_metrics:
+            ax.set_yscale("log")
 
     for lam, color in zip(active, colors):
         rep_data = [load_pretrain_metrics(r["run_id"]) for r in lam_runs[lam]]
@@ -123,20 +132,22 @@ def main():
 
         for ax, (mname, label, _) in zip(axes, metrics):
             mat = np.array([d[mname] for d in aligned])
-            mean = np.mean(mat, axis=0)
-            std = np.std(mat, axis=0)
-            ax.plot(common, mean, "-", color=color, linewidth=2, label=f"λ={lam}")
-            ax.fill_between(common, mean - std, mean + std, color=color, alpha=0.15)
+            if mname in log_metrics:
+                # Log-scale statistics: geometric mean +/- geometric std, so the
+                # band is symmetric in log space and never dips below zero.
+                logmat = np.log(np.clip(mat, 1e-12, None))
+                center = np.exp(np.mean(logmat, axis=0))
+                lo = np.exp(np.mean(logmat, axis=0) - np.std(logmat, axis=0))
+                hi = np.exp(np.mean(logmat, axis=0) + np.std(logmat, axis=0))
+            else:
+                center = np.mean(mat, axis=0)
+                lo = center - np.std(mat, axis=0)
+                hi = center + np.std(mat, axis=0)
+            ax.plot(common, center, "-", color=color, linewidth=2, label=f"λ={lam}")
+            ax.fill_between(common, lo, hi, color=color, alpha=0.15)
 
-    for ax, (mname, label, mcolor) in zip(axes, metrics):
-        ax.set_xlabel("Pretrain Epoch", fontsize=11)
-        ax.set_ylabel(label, fontsize=11)
-        ax.set_title(f"{label} during pretraining\n(5000 samples, {ep} epochs)", fontsize=11)
-        ax.grid(True, alpha=0.3)
+    for ax in axes:
         ax.legend(fontsize=9)
-
-    axes[0].set_yscale("log")
-    axes[1].set_yscale("log")
 
     fig.suptitle(f"Pretraining Dynamics — watermark influence vs λ ({ep} pretrain epochs)", fontsize=14, y=1.03)
     fig.tight_layout()
@@ -145,17 +156,18 @@ def main():
     plt.close(fig)
     print(f"  Saved: {path}")
 
-    # Print table: final epoch values per λ
+    # Print table: final epoch values per λ (geometric mean for log-scale losses)
     print("\n  === PRETRAIN FINAL EPOCH (mean over reps) ===")
-    print(f"  {'λ':<8} {'N':>3} {'wm_loss':>10} {'task_loss':>10} {'BER':>7}")
-    print(f"  {'-'*8} {'-'*3} {'-'*10} {'-'*10} {'-'*7}")
+    print(f"  {'λ':<8} {'N':>3} {'wm_loss(g)':>11} {'task_loss(g)':>12} {'BER':>7}")
+    print(f"  {'-'*8} {'-'*3} {'-'*11} {'-'*12} {'-'*7}")
     for lam in active:
         rep_data = [load_pretrain_metrics(r["run_id"]) for r in lam_runs[lam]]
         n = len(rep_data)
-        wml = np.mean([d["watermark_loss"][-1] for d in rep_data])
-        tl = np.mean([d["task_loss"][-1] for d in rep_data])
+        gmean = lambda v: float(np.exp(np.mean(np.log(np.clip(v, 1e-12, None)))))
+        wml = gmean([d["watermark_loss"][-1] for d in rep_data])
+        tl = gmean([d["task_loss"][-1] for d in rep_data])
         ber = np.mean([d["watermark_ber"][-1] for d in rep_data])
-        print(f"  {lam:<8} {n:>3} {wml:>10.4f} {tl:>10.4f} {ber:>7.4f}")
+        print(f"  {lam:<8} {n:>3} {wml:>11.5f} {tl:>12.5f} {ber:>7.4f}")
 
 
 if __name__ == "__main__":
