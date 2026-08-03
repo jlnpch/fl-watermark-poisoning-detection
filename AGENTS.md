@@ -121,6 +121,7 @@ Results save to `/home2/julian/test/quickstart-pytorch/results/` (absolute path 
 - `run_{timestamp}_server.csv` — round, server_acc, server_loss, server_asr
 - `run_{timestamp}_train.csv` — round, partition_id, train_loss, watermark_ber, is_attacker, excluded
 - `run_{timestamp}_eval.csv` — round, partition_id, eval_acc, eval_loss
+- `run_{timestamp}_pretrain.csv` — epoch, task_loss, watermark_loss, total_loss, watermark_ber
 - `run_registry.jsonl` — one JSON line per run with all config keys
 
 Every run generates a unique run_id (timestamp). The train CSV is the source for BER and exclusion analysis.
@@ -243,3 +244,19 @@ Output: `results/plots/5000_30ep/eval_*.png`
 - Plots: `results/plots/5000_50ep/*.png`
 - Results (N=5 sweep, N=3 defense): no BER–λ trend; defense accuracy uniformly higher
   than 30ep (94.0–99.2% vs 89.8–97.8%).
+
+## Pretraining metrics logging
+
+`pretrain_with_watermark` (in `task.py`) returns per-epoch metrics — task loss,
+watermark regularization loss, total loss (task + λ·wm), and watermark BER.
+`MetricsSaver` writes them to `run_{run_id}_pretrain.csv` (columns:
+`epoch, task_loss, watermark_loss, total_loss, watermark_ber`). This lets us
+track how the watermark loss evolves during pretraining and how λ drives the
+embedding.
+
+`utility scripts/plot_pretrain.py --pretrain-epochs N` plots per-λ mean±std of
+watermark loss (log scale), task loss, and BER over pretrain epochs for the
+clean baselines of a config, saving to `results/plots/5000_{N}ep/pretrain_evolution.png`.
+
+NOTE: only runs started **after** this logging was added produce
+`run_*_pretrain.csv`; existing runs have no pretrain CSV.

@@ -40,6 +40,11 @@ def main(grid: Grid, context: Context) -> None:
     log(INFO, "Run ID: %s", run_id)
     log_run(cfg.get("results-dir", "results"), run_id, dict(cfg))
 
+    # Metrics saver — captures per-round, per-client data to CSV
+    output_dir = cfg.get("results-dir", "results")
+    metrics_saver = MetricsSaver(output_dir=output_dir)
+    metrics_saver.run_id = run_id
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     watermark = create_watermark(cfg)
     global_model = Net()
@@ -50,19 +55,22 @@ def main(grid: Grid, context: Context) -> None:
 
     wd = cfg["weight-decay"]
     log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs)...", wm_lambda, pt_epochs)
-    server_pretrain(global_model, pretrain_loader, watermark, pt_epochs, lr, device, lambda_reg=wm_lambda, weight_decay=wd)
+    pretrain_metrics = server_pretrain(
+        global_model, pretrain_loader, watermark, pt_epochs, lr, device,
+        lambda_reg=wm_lambda, weight_decay=wd,
+    )
 
-    log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", watermark.compute_ber(global_model), 0.0)
+    for m in pretrain_metrics:
+        metrics_saver.add_pretrain(
+            m["epoch"], m["task_loss"], m["watermark_loss"], m["total_loss"], m["watermark_ber"],
+        )
+    final_ber = pretrain_metrics[-1]["watermark_ber"] if pretrain_metrics else watermark.compute_ber(global_model)
+    log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", final_ber, pretrain_metrics[-1]["total_loss"])
 
     attacker_frac = cfg.get("attacker-fraction", 0.0)
     log(INFO, "Attack config: type=%s, fraction=%.1f, max_trusted_ber=%.2f",
         cfg.get("attacker-type", "none"), attacker_frac, max_ber)
     arrays = ArrayRecord(global_model.state_dict())
-
-    # Metrics saver — captures per-round, per-client data to CSV
-    output_dir = cfg.get("results-dir", "results")
-    metrics_saver = MetricsSaver(output_dir=output_dir)
-    metrics_saver.run_id = run_id
 
     # Initialize WatermarkedFedAvg strategy
     strategy = WatermarkedFedAvg(

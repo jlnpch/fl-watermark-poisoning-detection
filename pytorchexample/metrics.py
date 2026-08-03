@@ -21,6 +21,7 @@ class MetricsSaver:
         self.train_rows = []
         self.eval_rows = []
         self.server_rows = []
+        self.pretrain_rows = []
 
     @property
     def run_id(self):
@@ -54,6 +55,15 @@ class MetricsSaver:
             "partition_id": partition_id,
             "eval_acc": eval_acc,
             "eval_loss": eval_loss,
+        })
+
+    def add_pretrain(self, epoch, task_loss, watermark_loss, total_loss, watermark_ber):
+        self.pretrain_rows.append({
+            "epoch": epoch,
+            "task_loss": task_loss,
+            "watermark_loss": watermark_loss,
+            "total_loss": total_loss,
+            "watermark_ber": watermark_ber,
         })
 
     def _ensure_dir(self):
@@ -92,5 +102,11 @@ class MetricsSaver:
                 f"run_{rid}_eval.csv",
                 ["round", "partition_id", "eval_acc", "eval_loss"],
                 self.eval_rows,
+            )
+        if self.pretrain_rows:
+            paths["pretrain"] = self._write_csv(
+                f"run_{rid}_pretrain.csv",
+                ["epoch", "task_loss", "watermark_loss", "total_loss", "watermark_ber"],
+                self.pretrain_rows,
             )
         return paths

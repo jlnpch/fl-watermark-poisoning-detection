@@ -1,0 +1,40 @@
+
+============================================
+  Run 1/12: λ=0.005 extra rep=1 (no attack)
+============================================
+
+╭────────────────── Update available ───────────────────╮
+│ A newer Flower version is available: 1.31.0 -> 1.32.1 │
+│ Upgrade: python -m pip install -U flwr                │
+╰───────────────────────────────────────────────────────╯
+[92mINFO [0m:      Starting Flower SuperLink
+[93mWARNING [0m:   Option `--insecure` was set. Starting insecure HTTP server with unencrypted communication (TLS disabled). Proceed only if you understand the risks.
+[93mWARNING [0m:   SuperNode authentication is disabled. The SuperLink will accept connections from any SuperNode.
+[92mINFO [0m:      Flower Deployment Runtime: Starting Control API on 0.0.0.0:9093
+[92mINFO [0m:      Flower Deployment Runtime: Starting ServerAppIo API on 0.0.0.0:9091
+[92mINFO [0m:      Starting Flower SuperExec
+Starting local SuperLink on 127.0.0.1:39093...
+✅ Updated simulation configuration.
+🎊 Successfully started run 2345228491234282750
+[92mINFO [0m:      Starting logstream for run_id `2345228491234282750`
+[92mINFO [0m:      SuperLink terminated gracefully.
+[93mWARNING [0m:   Connection attempt failed, retrying in 0.87 seconds
+
+  Done: λ=0.005 extra rep=1
+
+
+============================================
+  Run 2/12: λ=0.005 extra rep=2 (no attack)
+============================================
+
+[92mINFO [0m:      SuperExec terminated gracefully.
+[92mINFO [0m:      Starting Flower SuperLink
+[93mWARNING [0m:   Option `--insecure` was set. Starting insecure HTTP server with unencrypted communication (TLS disabled). Proceed only if you understand the risks.
+[93mWARNING [0m:   SuperNode authentication is disabled. The SuperLink will accept connections from any SuperNode.
+[92mINFO [0m:      Flower Deployment Runtime: Starting Control API on 0.0.0.0:9093
+[92mINFO [0m:      Flower Deployment Runtime: Starting ServerAppIo API on 0.0.0.0:9091
+[92mINFO [0m:      Starting Flower SuperExec
+Starting local SuperLink on 127.0.0.1:39093...
+✅ Updated simulation configuration.
+🎊 Successfully started run 17981508993239918749
+[92mINFO [0m:      Starting logstream for run_id `17981508993239918749`
