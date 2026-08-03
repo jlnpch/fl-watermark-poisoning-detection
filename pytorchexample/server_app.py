@@ -67,6 +67,11 @@ def main(grid: Grid, context: Context) -> None:
     final_ber = pretrain_metrics[-1]["watermark_ber"] if pretrain_metrics else watermark.compute_ber(global_model)
     log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", final_ber, pretrain_metrics[-1]["total_loss"])
 
+    if cfg.get("pretrain-only", False):
+        log(INFO, "pretrain-only mode: skipping federated rounds")
+        metrics_saver.save()
+        return
+
     attacker_frac = cfg.get("attacker-fraction", 0.0)
     log(INFO, "Attack config: type=%s, fraction=%.1f, max_trusted_ber=%.2f",
         cfg.get("attacker-type", "none"), attacker_frac, max_ber)

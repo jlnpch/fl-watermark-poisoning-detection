@@ -67,6 +67,7 @@ def find_matching_runs(runs, attack_type, lam, attacker_frac=0.1, pretrain_epoch
                and abs(r.get("watermark-lambda", 0) - lam) < 1e-9
                and r.get("server-private-samples") == 5000
                and r.get("pretrain-epochs") == pretrain_epochs
+               and not r.get("pretrain-only", False)
                and abs(r.get("attacker-fraction", 0) - attacker_frac) < 1e-9
                and Path(RESULTS_DIR / f"run_{r['run_id']}_train.csv").exists()]
     # Take first 3 runs (oldest by timestamp)
