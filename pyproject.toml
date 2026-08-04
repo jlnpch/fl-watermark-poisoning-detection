@@ -51,6 +51,8 @@ server-private-samples = 5000
 pretrain-epochs = 10
 # Skip federated rounds after pretraining (writes only the pretrain CSV)
 pretrain-only = false
+# Cosine-anneal the pretrain LR to ~0 over pretrain-epochs (settles the optimizer)
+pretrain-lr-scheduler = false
 
 # Data partitioning
 partition-type = "iid"

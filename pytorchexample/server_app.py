@@ -54,10 +54,12 @@ def main(grid: Grid, context: Context) -> None:
     pretrain_loader = load_server_pretrain_data(num_samples=server_private_samples, batch_size=64)
 
     wd = cfg["weight-decay"]
-    log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs)...", wm_lambda, pt_epochs)
+    use_sched = cfg.get("pretrain-lr-scheduler", False)
+    log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs, lr_scheduler=%s)...",
+        wm_lambda, pt_epochs, use_sched)
     pretrain_metrics = server_pretrain(
         global_model, pretrain_loader, watermark, pt_epochs, lr, device,
-        lambda_reg=wm_lambda, weight_decay=wd,
+        lambda_reg=wm_lambda, weight_decay=wd, use_lr_scheduler=use_sched,
     )
 
     for m in pretrain_metrics:
