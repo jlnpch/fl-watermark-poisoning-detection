@@ -84,6 +84,8 @@ def main(grid: Grid, context: Context) -> None:
         early_stopping_delta=es_delta,
         max_trusted_ber=max_ber,
         attacker_fraction=attacker_frac,
+        defense_method=cfg.get("defense-method", "mad"),
+        mad_alpha=cfg.get("mad-alpha", 3.0),
         metrics_saver=metrics_saver,
     )
 

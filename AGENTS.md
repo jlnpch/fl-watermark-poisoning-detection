@@ -85,7 +85,9 @@ nested quoting issues):
 | `label-flip-source` | `9` | int | Label-flip: source class to flip from |
 | `label-flip-target` | `2` | int | Label-flip: target class to flip to |
 | `label-flip-scale` | `1.0` | float | Label-flip: amplification of the update residual |
-| `max-trusted-ber` | `0.30` | float | Defense threshold: clients with BER above this are excluded |
+| `max-trusted-ber` | `0.30` | float | Defense threshold (only used when `defense-method="fixed"`) |
+| `defense-method` | `"mad"` | str | `"mad"` (dynamic per-round threshold) or `"fixed"` |
+| `mad-alpha` | `3.0` | float | MAD multiplier: Threshold = Median + alpha·MAD |
 | `watermark-lambda` | `0.01` | float | Watermark regularization weight during pretraining |
 | `num-server-rounds` | `50` | int | Number of FL rounds |
 | `pretrain-epochs` | `10` | int | Server pretrain epochs |
@@ -236,6 +238,26 @@ BER-evolution plots; the latter two include the N=10 lambda consistency study).
 
 `utility scripts/plot_evaluation.py` generates defense analysis plots.
 Output: `results/plots/5000_30ep/eval_*.png`
+
+## MAD dynamic threshold defense
+
+The defense now defaults to a **per-round dynamic threshold** (`defense-method="mad"`)
+instead of the fixed `max-trusted-ber`. Implemented in `watermarked_strategy.py`
+(`aggregate_train`), per the user's spec:
+
+1. Collect all local nodes' BER values for the round.
+2. `median = median(BERs)`
+3. `MAD = median(|BER_i − median|)`
+4. `threshold = median + mad-alpha * MAD` (`mad-alpha` default `3.0`)
+5. Exclude any node with `BER > threshold` (strictly greater).
+
+Edge cases: `<2` BERs → threshold `+inf` (exclude nobody). `defense-method="fixed"`
+restores the old behavior using `max-trusted-ber`. Threshold/median/MAD are logged
+each round. New config keys must be added to pyproject.toml before use (flwr
+rejects overrides otherwise) and whitelisted in `run_registry.py`.
+
+Note: the fixed-threshold `eval_*` plots and defense scripts still reference the
+old BER threshold (0.25) — revisit if/when the MAD defense is evaluated.
 
 ## 5000/50 config
 

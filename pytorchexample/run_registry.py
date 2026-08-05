@@ -38,6 +38,8 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "client-samples",
         "pretrain-only",
         "watermark-num-bits",
+        "defense-method",
+        "mad-alpha",
     ):
         val = config.get(key)
         if val is not None:

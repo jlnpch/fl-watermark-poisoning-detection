@@ -2,6 +2,7 @@ import io
 import time
 from logging import INFO
 
+import numpy as np
 from flwr.common.logger import log
 from flwr.serverapp.strategy import FedAvg
 from flwr.serverapp.strategy.result import Result
@@ -17,6 +18,8 @@ class WatermarkedFedAvg(FedAvg):
         early_stopping_delta=0.0,
         max_trusted_ber=1.0,
         attacker_fraction=0.0,
+        defense_method="mad",
+        mad_alpha=3.0,
         metrics_saver=None,
         **kwargs,
     ):
@@ -25,12 +28,43 @@ class WatermarkedFedAvg(FedAvg):
         self.early_stopping_delta = early_stopping_delta
         self.max_trusted_ber = max_trusted_ber
         self.attacker_fraction = attacker_fraction
+        self.defense_method = defense_method
+        self.mad_alpha = mad_alpha
         self.metrics = metrics_saver or MetricsSaver()
+
+    def _mad_threshold(self, bes):
+        """Dynamic per-round threshold: median + alpha * MAD (Median Absolute Deviation).
+
+        ``bes``: list of watermark BER values for the round. Returns the threshold;
+        falls back to +inf (exclude nobody) if fewer than 2 BERs are available.
+        """
+        if len(bes) < 2:
+            return float("inf")
+        bes = np.asarray(bes, dtype=float)
+        med = float(np.median(bes))
+        mad = float(np.median(np.abs(bes - med)))
+        return med + self.mad_alpha * mad
+
+    def _per_round_threshold(self, bes):
+        if self.defense_method == "fixed":
+            return self.max_trusted_ber
+        return self._mad_threshold(bes)
 
     def aggregate_train(self, server_round, replies):
         tp = fp = excluded = 0
         trusted = []
         n = len(replies)
+
+        # Collect BER values first (dynamic threshold needs the full round)
+        bers = []
+        for msg in replies:
+            if msg.has_error():
+                continue
+            ber = msg.content["metrics"].get("watermark_ber", None)
+            if ber is not None:
+                bers.append(ber)
+        threshold = self._per_round_threshold(bers)
+
         for msg in replies:
             if msg.has_error():
                 trusted.append(msg)
@@ -40,14 +74,14 @@ class WatermarkedFedAvg(FedAvg):
             pid = metrics.get("partition_id", -1)
             train_loss = metrics.get("train_loss", None)
             is_attacker = self.attacker_fraction > 0 and pid < int(n * self.attacker_fraction)
-            is_excluded = ber is not None and ber > self.max_trusted_ber
+            is_excluded = ber is not None and ber > threshold
 
             tag = " (attacker)" if is_attacker else ""
             if ber is not None:
                 log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s", pid, ber, tag)
 
             if is_excluded:
-                log(INFO, "  └─ Partition %d: EXCLUDED (BER %.4f > %.4f)", pid, ber, self.max_trusted_ber)
+                log(INFO, "  └─ Partition %d: EXCLUDED (BER %.4f > threshold %.4f)", pid, ber, threshold)
                 excluded += 1
                 if is_attacker:
                     tp += 1
@@ -66,9 +100,15 @@ class WatermarkedFedAvg(FedAvg):
                 excluded=is_excluded,
             )
 
+        if bers:
+            bers_arr = np.asarray(bers, dtype=float)
+            med = float(np.median(bers_arr))
+            mad = float(np.median(np.abs(bers_arr - med)))
+            log(INFO, "  └─ Threshold: %.4f (median %.4f, MAD %.4f, alpha %.1f, method=%s)",
+                threshold, med, mad, self.mad_alpha, self.defense_method)
         if excluded:
             log(INFO, "  └─ Excluded %d/%d clients (TP=%d, FP=%d, BER>%.4f)",
-                excluded, n, tp, fp, self.max_trusted_ber)
+                excluded, n, tp, fp, threshold)
 
         return super().aggregate_train(server_round, trusted)
 

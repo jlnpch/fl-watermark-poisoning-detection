@@ -68,6 +68,11 @@ attacker-type = "none"
 attacker-fraction = 0.0
 max-trusted-ber = 1.0
 
+# Defense thresholding: "mad" (dynamic per-round Median + alpha*MAD) or "fixed"
+defense-method = "mad"
+# Multiplier for the MAD-based dynamic threshold (Threshold = Median + alpha*MAD)
+mad-alpha = 3.0
+
 # Attack-specific params (active based on attacker-type):
 #   noise:       attacker-noise-scale
 #   sign_flip:   sign-flip-scale
