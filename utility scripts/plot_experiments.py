@@ -162,14 +162,15 @@ def main():
             min_e = max(p["epoch"][0] for p in pretrains)
             max_e = min(p["epoch"][-1] for p in pretrains)
             common = list(range(min_e, max_e + 1))
+            aligned = []
             for p in pretrains:
-                p = {k: np.array(v) for k, v in p.items()}
-                imap = dict(zip(p["epoch"], range(len(p["epoch"]))))
-                common_idx = [imap[e] for e in common]
-                p["_idx"] = common_idx
-            wm = np.array([[p["watermark_loss"][i] for i in p["_idx"]] for p in pretrains])
-            tk = np.array([[p["task_loss"][i] for i in p["_idx"]] for p in pretrains])
-            br = np.array([[p["watermark_ber"][i] for i in p["_idx"]] for p in pretrains])
+                ap = {k: np.array(v) for k, v in p.items()}
+                imap = dict(zip(ap["epoch"], range(len(ap["epoch"]))))
+                ap["_idx"] = [imap[e] for e in common]
+                aligned.append(ap)
+            wm = np.array([[p["watermark_loss"][i] for i in p["_idx"]] for p in aligned])
+            tk = np.array([[p["task_loss"][i] for i in p["_idx"]] for p in aligned])
+            br = np.array([[p["watermark_ber"][i] for i in p["_idx"]] for p in aligned])
 
             for ax, mat in ((axes[0], wm), (axes[1], tk)):
                 logmat = np.log(np.clip(mat, 1e-12, None))
