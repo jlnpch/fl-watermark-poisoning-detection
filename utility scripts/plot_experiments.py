@@ -139,6 +139,12 @@ def main():
         print("No runs found — have the experiment sweeps finished?")
         sys.exit(1)
 
+    plot_evolution(matched, ep, exp_info)
+    plot_lambda_scan(matched, ep, exp_info)
+
+
+def plot_evolution(matched, ep, exp_info):
+    """5-panel evolution figure (pretrain losses/BER + FL BER/accuracy)."""
     # Group by lambda
     lam_runs = defaultdict(list)
     for r in matched:
@@ -242,6 +248,85 @@ def main():
         accs = [a for a in (load_server_acc(r["run_id"]) for r in reps) if a]
         acc_end = np.mean([a[1][-1] for a in accs]) if accs else float("nan")
         print(f"  {lam:<8} {n:>3} {wml:>9.5f} {tl:>10.5f} {bpret:>9.4f} {ber_end:>11.4f} {acc_end:>10.2f}")
+
+
+def plot_lambda_scan(matched, ep, exp_info):
+    """BER and accuracy vs λ (same style as baseline_lambda_scan.png)."""
+    lam_runs = defaultdict(list)
+    for r in matched:
+        lam = round(r.get("watermark-lambda", 0), 3)
+        lam_runs[lam].append(r)
+    active = [lam for lam in LAMBDAS if lam_runs[lam]]
+
+    # Per λ: mean BER over FL rounds and mean accuracy over FL rounds, per rep
+    lam_data = {}
+    for lam in active:
+        bers, accs = [], []
+        for r in lam_runs[lam]:
+            train = load_train_ber(r["run_id"])
+            server = load_server_acc(r["run_id"])
+            if train:
+                bers.append(np.mean(train[1]))
+            if server:
+                accs.append(np.mean(server[1]))
+        lam_data[lam] = (bers, accs)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # BER subplot
+    ax = axes[0]
+    for i, lam in enumerate(active):
+        bers, _ = lam_data[lam]
+        for b in bers:
+            ax.plot(i, b, "o", color="C0", markersize=4, alpha=0.5, zorder=3)
+    means = [np.mean(lam_data[lam][0]) if lam_data[lam][0] else 0 for lam in active]
+    stds = [np.std(lam_data[lam][0]) if lam_data[lam][0] else 0 for lam in active]
+    ax.errorbar(range(len(active)), means, yerr=stds, fmt="o-", capsize=5, capthick=1.5,
+                linewidth=2, markersize=8, color="C0")
+    ax.set_xticks(range(len(active)))
+    ax.set_xticklabels([str(lam) for lam in active], fontsize=10)
+    ax.set_xlabel("Watermark Strength (λ)")
+    ax.set_ylabel("Watermark BER")
+    ax.set_title(f"BER vs λ (mean over FL rounds)\n(5000 server samples, {ep} pretrain epochs)")
+    ax.grid(True, alpha=0.3)
+
+    # Accuracy subplot
+    ax = axes[1]
+    for i, lam in enumerate(active):
+        _, accs = lam_data[lam]
+        for a in accs:
+            ax.plot(i, a, "s", color="C2", markersize=4, alpha=0.5, zorder=3)
+    means = [np.mean(lam_data[lam][1]) if lam_data[lam][1] else 0 for lam in active]
+    stds = [np.std(lam_data[lam][1]) if lam_data[lam][1] else 0 for lam in active]
+    ax.errorbar(range(len(active)), means, yerr=stds, fmt="s-", capsize=5, capthick=1.5,
+                linewidth=2, markersize=8, color="C2")
+    ax.set_xticks(range(len(active)))
+    ax.set_xticklabels([str(lam) for lam in active], fontsize=10)
+    ax.set_xlabel("Watermark Strength (λ)")
+    ax.set_ylabel("Server Accuracy (%)")
+    ax.set_title(f"Accuracy vs λ (mean over FL rounds)\n(5000 server samples, {ep} pretrain epochs)")
+    ax.grid(True, alpha=0.3)
+
+    fig.suptitle(f"Effect of Watermark Strength — {exp_info['title']}", fontsize=14, y=1.02)
+    fig.tight_layout()
+    out_dir = RESULTS_DIR / "plots" / "various_experiments" / exp_info["dir"]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "baseline_lambda_scan.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {path}")
+
+    print(f"\n  === LAMBDA SCAN ({exp_info['dir']}) ===")
+    print(f"  {'λ':<8} {'N':>3} {'Mean BER':<10} {'Std BER':<10} {'Mean Acc':<10} {'Std Acc':<10}")
+    print(f"  {'-'*8} {'-'*3} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
+    for lam in active:
+        bers, accs = lam_data[lam]
+        n = len(bers)
+        mb = np.mean(bers) if bers else 0
+        sb = np.std(bers) if bers else 0
+        ma = np.mean(accs) if accs else 0
+        sa = np.std(accs) if accs else 0
+        print(f"  {lam:<8} {n:>3} {mb:<10.4f} {sb:<10.4f} {ma:<10.2f} {sa:<10.2f}")
 
 
 if __name__ == "__main__":
