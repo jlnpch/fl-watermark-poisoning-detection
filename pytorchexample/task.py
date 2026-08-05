@@ -181,25 +181,17 @@ def compute_asr(net, testloader, source_class, target_class, device):
     return success / total if total > 0 else 0.0
 
 
-def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0, use_lr_scheduler=False):
+def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0):
     """Pretrain the model with task loss + watermark regularization.
 
     Returns a list of per-epoch dicts:
         {"epoch", "task_loss", "watermark_loss", "total_loss", "watermark_ber"}
     where the losses are epoch means over all batches (total = task + λ·wm) and
     BER is computed on the model at the end of each epoch.
-
-    If ``use_lr_scheduler`` is True, a cosine annealing LR schedule anneals the
-    learning rate from ``lr`` to ~0 over the epochs (T_max = epochs), letting
-    the optimizer settle at the end of pretraining.
     """
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
-    scheduler = (
-        torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-        if use_lr_scheduler else None
-    )
     net.train()
 
     per_epoch = []
@@ -224,9 +216,6 @@ def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lam
             total_task += task_loss.item()
             total_wm += wm_loss.item()
             n_batches += 1
-
-        if scheduler is not None:
-            scheduler.step()
 
         per_epoch.append({
             "epoch": epoch + 1,

@@ -42,7 +42,8 @@ results-dir = "/home2/julian/test/quickstart-pytorch/results"
 # Watermark
 watermark-type = "uchida"
 watermark-message = "uchida"
-watermark-num-bits = 64
+# 128-bit default: redundant bits flatten run-to-run variance of extracted BER
+watermark-num-bits = 128
 watermark-layer = "backbone.fc.weight"
 watermark-lambda = 0.01
 
@@ -51,8 +52,6 @@ server-private-samples = 5000
 pretrain-epochs = 10
 # Skip federated rounds after pretraining (writes only the pretrain CSV)
 pretrain-only = false
-# Cosine-anneal the pretrain LR to ~0 over pretrain-epochs (settles the optimizer)
-pretrain-lr-scheduler = false
 
 # Data partitioning
 partition-type = "iid"
