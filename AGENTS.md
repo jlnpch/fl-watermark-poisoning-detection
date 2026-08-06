@@ -259,6 +259,41 @@ rejects overrides otherwise) and whitelisted in `run_registry.py`.
 Note: the fixed-threshold `eval_*` plots and defense scripts still reference the
 old BER threshold (0.25) — revisit if/when the MAD defense is evaluated.
 
+## MAD evaluation results (5000/50ep, λ=0.01, 128-bit, 3 reps per config)
+
+`utility scripts/run_defense_mad.sh` + `run_defense_mad_baseline.sh`;
+plots via `utility scripts/plot_defense_mad.py` → `results/plots/mad_sweep/`.
+
+Attack sweep (sign_flip, 10% attackers, full 50 FL rounds):
+
+| scale | α | TPR% | FPR% | d' | AUC | final acc% |
+|---|---|---|---|---|---|---|
+| 5 | 2.0 | 95.3 | 8.2 | 3.25 | 0.982 | 72.5 |
+| 5 | 2.5 | 98.7 | 5.0 | 4.15 | 0.995 | 73.4 |
+| 5 | 3.0 | 98.7 | 6.9 | 3.78 | 0.993 | 74.0 |
+| 2 | 2.0 | 71.3 | 11.1 | 1.60 | 0.868 | 71.2 |
+| 2 | 2.5 | 86.0 | 11.2 | 2.39 | 0.931 | 72.5 |
+| 2 | 3.0 | 86.0 | 4.3 | 2.48 | 0.944 | 72.4 |
+
+Baseline (NO attacker) FP rate — the reason α barely matters:
+
+| α | FP rounds/50 | FPR/client-round |
+|---|---|---|
+| 2.0 | 41.3 | 14.4% |
+| 2.5 | 30.3 | 9.4% |
+| 3.0 | 40.3 | 14.3% |
+
+Key findings:
+- Attacker detection near-perfect for scale=5 (only early-round misses); scale=2
+  evades in early rounds, worse at α=2.0. Zero misses mid/late.
+- Baseline FPs are **systematic**: one partition/run with structurally higher BER
+  (different partition each run) is dropped most rounds. Honest BERs quantize at
+  1/128, so MAD is tiny (0.004–0.02) vs honest jitter ±0.05 — the threshold sits
+  inside the honest noise band and FPR is essentially α-insensitive
+  (zero-FP would need α up to ~4 median, ~41 worst).
+- α=3.0 (default) is the best single choice: near-best TPR, lowest FPR in attack
+  runs, highest final accuracy (~74%, ≈ no-attack baseline).
+
 ## 5000/50 config
 
 - `utility scripts/run_lambda_sweep_50ep.sh` — clean baseline lambda sweep (6 λ × 5 reps = 30 runs)
