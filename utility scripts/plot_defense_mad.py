@@ -133,7 +133,7 @@ def compute_auc(honest_bers, attacker_bers):
 def main(pretrain_epochs=PRETRAIN_EPOCHS):
     runs = load_registry()
     print(f"Found {len(runs)} runs in registry")
-    plots_dir = RESULTS_DIR / "plots" / "mad_sweep"
+    plots_dir = RESULTS_DIR / "plots" / f"mad_sweep_{pretrain_epochs}ep"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     n_rows = len(SCALES)
@@ -328,6 +328,69 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
     fig_acc.savefig(acc_path, dpi=150)
     plt.close(fig_acc)
     print(f"Saved {acc_path}")
+
+    # --- Baseline (no attacker) FP analysis ---
+    base_runs = [r for r in runs
+                 if r.get("defense-method") == "mad"
+                 and r.get("attacker-type") == "none"
+                 and abs(r.get("watermark-lambda", 0) - LAMBDA) < 1e-9
+                 and r.get("server-private-samples") == 5000
+                 and r.get("pretrain-epochs") == pretrain_epochs
+                 and not r.get("pretrain-only", False)
+                 and Path(RESULTS_DIR / f"run_{r['run_id']}_train.csv").exists()]
+
+    base_stats = defaultdict(list)  # alpha -> [(fp_rounds, fp_total, n_hon)]
+    for r in base_runs:
+        train = load_train_data(r["run_id"])
+        if train is None:
+            continue
+        fp_rounds = sum(1 for rnd, c in train.items() if any(e and not a for _, _, a, e in c))
+        fp_total = sum(1 for rnd, c in train.items() for _, _, a, e in c if e and not a)
+        n_hon = sum(len([x for x in c if not x[2]]) for c in train.values())
+        base_stats[r["mad-alpha"]].append((fp_rounds, fp_total, n_hon))
+
+    if base_stats:
+        alphas = sorted(base_stats)
+        fp_r_means = [np.mean([x[0] for x in base_stats[a]]) for a in alphas]
+        fp_r_stds = [np.std([x[0] for x in base_stats[a]]) for a in alphas]
+        fpr_means = [np.mean([x[1] for x in base_stats[a]]) / np.mean([x[2] for x in base_stats[a]]) * 100
+                     for a in alphas]
+        fpr_stds = [np.std([x[1] / x[2] * 100 for x in base_stats[a]]) for a in alphas]
+
+        fig_base, axes_base = plt.subplots(1, 2, figsize=(12, 5))
+        x = np.arange(len(alphas))
+        axes_base[0].bar(x - 0.2, fp_r_means, 0.4, yerr=fp_r_stds, color="C3", label="FP rounds /50")
+        axes_base[0].set_xticks(x, [str(a) for a in alphas])
+        axes_base[0].set_xlabel("alpha")
+        axes_base[0].set_ylabel("FP rounds out of 50")
+        axes_base[0].set_title("Baseline (no attacker): rounds with a false exclusion")
+        axes_base[0].grid(True, axis="y", alpha=0.3)
+        axes_base[0].legend(fontsize=9)
+        axes_base[1].bar(x, fpr_means, 0.4, yerr=fpr_stds, color="C0", label="FPR/client-round")
+        axes_base[1].set_xticks(x, [str(a) for a in alphas])
+        axes_base[1].set_xlabel("alpha")
+        axes_base[1].set_ylabel("FPR (%)")
+        axes_base[1].set_title("Baseline (no attacker): client false-positive rate")
+        axes_base[1].grid(True, axis="y", alpha=0.3)
+        axes_base[1].legend(fontsize=9)
+        fig_base.suptitle(f"Baseline FP (5000/{pretrain_epochs}ep, no attacker, 3 reps)",
+                          fontsize=13)
+        fig_base.tight_layout(rect=[0, 0, 1, 0.95])
+        base_path = plots_dir / "mad_baseline_fp.png"
+        fig_base.savefig(base_path, dpi=150)
+        plt.close(fig_base)
+        print(f"Saved {base_path}")
+
+        print("\nBaseline (no attacker) FP summary:")
+        print("{:<6}{:>16}{:>16}{:>12}".format("alpha", "FP rounds/50", "FPR/client%", "n"))
+        for a in alphas:
+            rows = base_stats[a]
+            print("{:<6}{:>12.1f} ± {:<4.1f}{:>13.1f} ± {:<4.1f}{:>12}".format(
+                a,
+                np.mean([x[0] for x in rows]), np.std([x[0] for x in rows]),
+                np.mean([x[1] / x[2] * 100 for x in rows]),
+                np.std([x[1] / x[2] * 100 for x in rows]),
+                len(rows)))
 
     # --- Text summary table ---
     print("\n{:<6}{:<6}{:>8}{:>8}{:>8}{:>8}{:>10}{:>6}".format(

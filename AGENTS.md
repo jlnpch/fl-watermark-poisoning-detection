@@ -294,6 +294,23 @@ Key findings:
 - α=3.0 (default) is the best single choice: near-best TPR, lowest FPR in attack
   runs, highest final accuracy (~74%, ≈ no-attack baseline).
 
+Same sweep rerun at 5000/30ep (27 runs: 18 attack + 9 baseline) — same picture:
+
+| config | TPR% | FPR% (attack) | FPR% (baseline, no attacker) |
+|---|---|---|---|
+| scale5 α=2.0 | 99.3 | 7.9 | 11.7 |
+| scale5 α=2.5 | 97.3 | 9.6 | 17.3 |
+| scale5 α=3.0 | 96.7 | 3.6 | 9.3 |
+| scale2 α=2.0 | 83.3 | 13.0 | — |
+| scale2 α=2.5 | 68.0 | 9.0 | — |
+| scale2 α=3.0 | 84.0 | 7.4 | — |
+
+- 30ep ≈ 50ep qualitatively; final accuracy ~1 pt lower (~71–73%).
+- Baseline FPR remains systematic and noisy (±10 rounds/50 across reps); α=3.0
+  gives the lowest baseline FPR at both epochs (9.3% at 30ep, 14.3% at 50ep).
+- One 30ep run (scale5 α3.0 rep1, `20260806_185440`) hung at round ~48 and wrote
+  no CSV; reran manually as `20260807_145812`.
+
 ## 5000/50 config
 
 - `utility scripts/run_lambda_sweep_50ep.sh` — clean baseline lambda sweep (6 λ × 5 reps = 30 runs)
