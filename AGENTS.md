@@ -311,6 +311,38 @@ Same sweep rerun at 5000/30ep (27 runs: 18 attack + 9 baseline) — same picture
 - One 30ep run (scale5 α3.0 rep1, `20260806_185440`) hung at round ~48 and wrote
   no CSV; reran manually as `20260807_145812`.
 
+Extended α sweep (4/7/9, 108 total runs: 6 α × {scale5, scale2, baseline} × 3
+reps × {30,50}ep). `run_defense_mad_extended.sh`; the first batch was interrupted
+by a machine reboot after 8 runs and completed by `run_defense_mad_extended_rest.sh`.
+
+Baseline FPR (no attacker) vs α:
+
+| α | 30ep | 50ep |
+|---|---|---|
+| 2.0 | 11.7% | 14.4% |
+| 2.5 | 17.3% | 9.4% |
+| 3.0 | 9.3% | 14.3% |
+| 4 | 7.7% | 4.6% |
+| 7 | 6.0% | 4.6% |
+| 9 | 5.7% | 4.7% |
+
+TPR (sign-flip) vs α:
+
+| α | 30ep s5 | 30ep s2 | 50ep s5 | 50ep s2 |
+|---|---|---|---|---|
+| 2.0 | 99.3 | 83.3 | 95.3 | 71.3 |
+| 3.0 | 96.7 | 84.0 | 98.7 | 86.0 |
+| 4 | 95.3 | 74.7 | 97.3 | 74.7 |
+| 7 | 86.0 | 62.0 | 90.0 | 38.7 |
+| 9 | 46.0 | 61.3 | 81.3 | 48.0 |
+
+- **α=4 is the sweet spot**: baseline FPR drops ~3× (50ep 14.4→4.6%) with
+  scale=5 TPR still 95–97% and final acc ~73%. Beyond α=4, FPR plateaus
+  (~4.6–5.7%) while detection erodes (50ep scale2 α=7 → TPR 38.7%;
+  30ep scale5 α=9 → TPR 46% and accuracy crashes to ~54%).
+- So per-node MAD is limited: honest BER spread ≫ MAD (1/128 quantization), so
+  even α=9 never reaches zero baseline FP.
+
 ## 5000/50 config
 
 - `utility scripts/run_lambda_sweep_50ep.sh` — clean baseline lambda sweep (6 λ × 5 reps = 30 runs)

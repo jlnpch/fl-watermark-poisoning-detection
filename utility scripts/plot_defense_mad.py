@@ -22,7 +22,7 @@ import numpy as np
 
 RESULTS_DIR = Path("results")
 
-ALPHAS = [2.0, 2.5, 3.0]
+ALPHAS = [2.0, 2.5, 3.0, 4.0, 7.0, 9.0]
 SCALES = [5, 2]
 PRETRAIN_EPOCHS = 50
 LAMBDA = 0.01
@@ -138,7 +138,7 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
 
     n_rows = len(SCALES)
     n_cols = len(ALPHAS)
-    fig_ber, axes_ber = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 5 * n_rows))
+    fig_ber, axes_ber = plt.subplots(n_rows, n_cols, figsize=(4.5 * n_cols, 4.5 * n_rows))
     axes_ber = np.atleast_2d(axes_ber)
 
     summary_rows = []
@@ -291,7 +291,7 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
     print(f"Saved {sum_path}")
 
     # --- Accuracy evolution per run, one subplot per (scale, alpha) ---
-    fig_acc, axes_acc = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 5 * n_rows))
+    fig_acc, axes_acc = plt.subplots(n_rows, n_cols, figsize=(4.5 * n_cols, 4.5 * n_rows))
     axes_acc = np.atleast_2d(axes_acc)
 
     for si, scale in enumerate(SCALES):
