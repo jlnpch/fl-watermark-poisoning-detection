@@ -23,6 +23,7 @@ import numpy as np
 RESULTS_DIR = Path("results")
 
 ALPHAS = [2.0, 3.0, 4.0, 7.0]
+ALPHAS_FULL = [2.0, 2.5, 3.0, 4.0, 7.0, 9.0]  # for the summary figure/table
 SCALES = [5, 2]
 PRETRAIN_EPOCHS = 50
 LAMBDA = 0.01
@@ -130,6 +131,65 @@ def compute_auc(honest_bers, attacker_bers):
     return np.trapz(tpr, fpr)
 
 
+def compute_config_stats(runs, scale, alpha, pretrain_epochs):
+    """Per (scale, alpha): BER/trajectory data + summary metrics, cached."""
+    matches = find_mad_runs(runs, scale, alpha, pretrain_epochs)
+    honest_by_round = defaultdict(list)
+    attacker_by_round = defaultdict(list)
+    excluded_by_round = defaultdict(list)
+    is_att_by_round = defaultdict(list)
+    thr_by_round = defaultdict(list)
+    all_accs = []
+
+    for m in matches:
+        rid = m["run_id"]
+        train = load_train_data(rid)
+        server = load_server_data(rid)
+        if train is None:
+            continue
+        for rnd, clients in train.items():
+            bes = [ber for _, ber, _, _ in clients]
+            thr_by_round[rnd].append(mad_threshold(bes, alpha))
+            for pid, ber, is_att, excluded in clients:
+                (attacker_by_round if is_att else honest_by_round)[rnd].append(ber)
+                excluded_by_round[rnd].append(excluded)
+                is_att_by_round[rnd].append(is_att)
+        if server:
+            all_accs.append(server[1])
+
+    if not honest_by_round:
+        return None
+
+    rounds = sorted(honest_by_round.keys())
+    tpr_by_rnd, fpr_by_rnd = [], []
+    for rnd in rounds:
+        ex = np.array(excluded_by_round[rnd])
+        att = np.array(is_att_by_round[rnd])
+        n_att = att.sum()
+        n_hon = len(att) - n_att
+        if n_att > 0:
+            tpr_by_rnd.append((ex[att == 1].sum() / n_att) * 100)
+        if n_hon > 0:
+            fpr_by_rnd.append((ex[att == 0].sum() / n_hon) * 100)
+
+    tpr = np.mean(tpr_by_rnd) if tpr_by_rnd else np.nan
+    fpr = np.mean(fpr_by_rnd) if fpr_by_rnd else np.nan
+
+    all_honest = [b for rnd in rounds for b in honest_by_round[rnd]]
+    all_attacker = [b for rnd in rounds for b in attacker_by_round[rnd]]
+    dprime = compute_dprime(all_honest, all_attacker)
+    auc = compute_auc(all_honest, all_attacker)
+    final_acc = np.mean([a[-1] for a in all_accs]) if all_accs else np.nan
+
+    return {"rounds": rounds,
+            "honest_by_round": honest_by_round,
+            "attacker_by_round": attacker_by_round,
+            "thr_by_round": thr_by_round,
+            "tpr": tpr, "fpr": fpr,
+            "dprime": dprime, "auc": auc,
+            "final_acc": final_acc, "n": len(matches)}
+
+
 def main(pretrain_epochs=PRETRAIN_EPOCHS):
     runs = load_registry()
     print(f"Found {len(runs)} runs in registry")
@@ -142,94 +202,53 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
     axes_ber = np.atleast_2d(axes_ber)
 
     summary_rows = []
+    cache = {}
+
+    def stats_for(scale, alpha):
+        key = (scale, alpha)
+        if key not in cache:
+            cache[key] = compute_config_stats(runs, scale, alpha, pretrain_epochs)
+        return cache[key]
 
     for si, scale in enumerate(SCALES):
         for ai, alpha in enumerate(ALPHAS):
-            matches = find_mad_runs(runs, scale, alpha, pretrain_epochs)
-            print(f"\n  scale={scale} alpha={alpha}: {len(matches)} runs")
-
-            honest_by_round = defaultdict(list)
-            attacker_by_round = defaultdict(list)
-            excluded_by_round = defaultdict(list)  # rnd -> [1 if excluded else 0 for each client]
-            is_att_by_round = defaultdict(list)    # rnd -> [1 if attacker else 0 for each client]
-            thr_by_round = defaultdict(list)
-            all_accs = []
-
-            for m in matches:
-                rid = m["run_id"]
-                train = load_train_data(rid)
-                server = load_server_data(rid)
-                if train is None:
-                    continue
-
-                for rnd, clients in train.items():
-                    bes = [ber for _, ber, _, _ in clients]
-                    thr_by_round[rnd].append(mad_threshold(bes, alpha))
-                    for pid, ber, is_att, excluded in clients:
-                        (attacker_by_round if is_att else honest_by_round)[rnd].append(ber)
-                        excluded_by_round[rnd].append(excluded)
-                        is_att_by_round[rnd].append(is_att)
-
-                if server:
-                    all_accs.append(server[1])
-
-            if not honest_by_round:
+            print(f"\n  scale={scale} alpha={alpha}: {len(find_mad_runs(runs, scale, alpha, pretrain_epochs))} runs")
+            st = stats_for(scale, alpha)
+            if st is None:
                 print(f"    WARNING: no data, skipping")
                 continue
-
-            # Per-round exclusion stats (mean over reps)
-            rounds = sorted(honest_by_round.keys())
-            tpr_by_rnd, fpr_by_rnd = [], []
-            for rnd in rounds:
-                ex = np.array(excluded_by_round[rnd])
-                att = np.array(is_att_by_round[rnd])
-                n_att = att.sum()
-                n_hon = len(att) - n_att
-                if n_att > 0:
-                    tpr_by_rnd.append((ex[att == 1].sum() / n_att) * 100)
-                if n_hon > 0:
-                    fpr_by_rnd.append((ex[att == 0].sum() / n_hon) * 100)
-
-            tpr = np.mean(tpr_by_rnd) if tpr_by_rnd else np.nan
-            fpr = np.mean(fpr_by_rnd) if fpr_by_rnd else np.nan
-
-            # Aggregate BERs for d' and AUC (all rounds, all reps)
-            all_honest = [b for rnd in rounds for b in honest_by_round[rnd]]
-            all_attacker = [b for rnd in rounds for b in attacker_by_round[rnd]]
-            dprime = compute_dprime(all_honest, all_attacker)
-            auc = compute_auc(all_honest, all_attacker)
-
-            final_acc = np.mean([a[-1] for a in all_accs]) if all_accs else np.nan
-            summary_rows.append((scale, alpha, tpr, fpr, dprime, auc, final_acc, len(matches)))
+            summary_rows.append((scale, alpha, st["tpr"], st["fpr"], st["dprime"],
+                                 st["auc"], st["final_acc"], st["n"]))
 
             # --- BER evolution subplot ---
             ax = axes_ber[si, ai]
-            h_means = [np.mean(honest_by_round[r]) for r in rounds]
-            h_stds = [np.std(honest_by_round[r]) for r in rounds]
+            rounds = st["rounds"]
+            h_means = [np.mean(st["honest_by_round"][r]) for r in rounds]
+            h_stds = [np.std(st["honest_by_round"][r]) for r in rounds]
             ax.plot(rounds, h_means, "C0-", linewidth=2, label="Honest")
             ax.fill_between(rounds, [m - s for m, s in zip(h_means, h_stds)],
                             [m + s for m, s in zip(h_means, h_stds)],
                             color="C0", alpha=0.15)
 
-            common = sorted(set(rounds) & set(attacker_by_round.keys()))
+            common = sorted(set(rounds) & set(st["attacker_by_round"].keys()))
             if common:
-                a_means = [np.mean(attacker_by_round[r]) for r in common]
-                a_stds = [np.std(attacker_by_round[r]) for r in common]
+                a_means = [np.mean(st["attacker_by_round"][r]) for r in common]
+                a_stds = [np.std(st["attacker_by_round"][r]) for r in common]
                 ax.plot(common, a_means, "C3--", linewidth=2, label="Attacker")
                 ax.fill_between(common,
                                 [max(0, m - s) for m, s in zip(a_means, a_stds)],
                                 [m + s for m, s in zip(a_means, a_stds)],
                                 color="C3", alpha=0.15)
 
-            if thr_by_round:
-                t_rounds = sorted(thr_by_round.keys())
-                t_means = [np.mean(thr_by_round[r]) for r in t_rounds]
+            if st["thr_by_round"]:
+                t_rounds = sorted(st["thr_by_round"].keys())
+                t_means = [np.mean(st["thr_by_round"][r]) for r in t_rounds]
                 ax.plot(t_rounds, t_means, "C1-", linewidth=1.5,
                         label=f"Threshold (median+{alpha}·MAD)")
 
             ax.set_xlabel("FL Round")
             ax.set_ylabel("Watermark BER")
-            ax.set_title(f"sign-flip scale={scale}, α={alpha}  (TPR {tpr:.0f}%, FPR {fpr:.0f}%)",
+            ax.set_title(f"sign-flip scale={scale}, α={alpha}  (TPR {st['tpr']:.0f}%, FPR {st['fpr']:.0f}%)",
                          fontsize=11)
             ax.set_ylim(-0.05, 1.0)
             ax.grid(True, alpha=0.3)
@@ -244,6 +263,17 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
     print(f"\nSaved {ber_path}")
 
     # --- Summary figure: metrics vs alpha for each scale ---
+    for scale in SCALES:
+        for alpha in ALPHAS_FULL:
+            if any((r[0], r[1]) == (scale, alpha) for r in summary_rows):
+                continue
+            st = stats_for(scale, alpha)
+            if st is None:
+                continue
+            summary_rows.append((scale, alpha, st["tpr"], st["fpr"], st["dprime"],
+                                 st["auc"], st["final_acc"], st["n"]))
+    summary_rows.sort(key=lambda r: (r[0], r[1]))
+
     n_metrics = 2  # exclusion rates + final accuracy
     fig_sum, axes_sum = plt.subplots(n_rows, n_metrics, figsize=(6 * n_metrics, 5 * n_rows))
     axes_sum = np.atleast_2d(axes_sum)
