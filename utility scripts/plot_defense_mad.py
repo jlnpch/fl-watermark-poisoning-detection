@@ -331,6 +331,7 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
                  and Path(RESULTS_DIR / f"run_{r['run_id']}_train.csv").exists()]
 
     base_stats = defaultdict(list)  # alpha -> [(fp_rounds, fp_total, n_hon)]
+    ber_by_alpha = defaultdict(lambda: defaultdict(list))  # alpha -> rnd -> [ber,...]
     for r in base_runs:
         train = load_train_data(r["run_id"])
         if train is None:
@@ -339,6 +340,9 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
         fp_total = sum(1 for rnd, c in train.items() for _, _, a, e in c if e and not a)
         n_hon = sum(len([x for x in c if not x[2]]) for c in train.values())
         base_stats[r["mad-alpha"]].append((fp_rounds, fp_total, n_hon))
+        for rnd, clients in train.items():
+            ber_by_alpha[r["mad-alpha"]][rnd].extend(
+                [ber for _, ber, _, _ in clients])
 
     if base_stats:
         alphas = sorted(base_stats)
@@ -346,15 +350,32 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
                      for a in alphas]
         fpr_stds = [np.std([x[1] / x[2] * 100 for x in base_stats[a]]) for a in alphas]
 
-        fig_base, ax_base = plt.subplots(1, 1, figsize=(7, 5))
+        colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(alphas)))
+        fig_base, (ax_ber, ax_fpr) = plt.subplots(1, 2, figsize=(14, 5))
+        for i, a in enumerate(alphas):
+            rounds = sorted(ber_by_alpha[a])
+            means = [np.mean(ber_by_alpha[a][r]) for r in rounds]
+            stds = [np.std(ber_by_alpha[a][r]) for r in rounds]
+            ax_ber.plot(rounds, means, "-", color=colors[i], linewidth=2,
+                        label=f"α={a}")
+            ax_ber.fill_between(rounds,
+                                [m - s for m, s in zip(means, stds)],
+                                [m + s for m, s in zip(means, stds)],
+                                color=colors[i], alpha=0.15)
+        ax_ber.set_xlabel("FL Round")
+        ax_ber.set_ylabel("Watermark BER")
+        ax_ber.set_title("Baseline (no attacker): BER evolution")
+        ax_ber.grid(True, alpha=0.3)
+        ax_ber.legend(fontsize=9)
+
         x = np.arange(len(alphas))
-        ax_base.bar(x, fpr_means, 0.5, yerr=fpr_stds, color="C0", label="FPR/client-round")
-        ax_base.set_xticks(x, [str(a) for a in alphas])
-        ax_base.set_xlabel("alpha")
-        ax_base.set_ylabel("FPR (%)")
-        ax_base.set_title("Baseline (no attacker): client false-positive rate")
-        ax_base.grid(True, axis="y", alpha=0.3)
-        ax_base.legend(fontsize=9)
+        ax_fpr.bar(x, fpr_means, 0.5, yerr=fpr_stds, color="C0", label="FPR/client-round")
+        ax_fpr.set_xticks(x, [str(a) for a in alphas])
+        ax_fpr.set_xlabel("alpha")
+        ax_fpr.set_ylabel("FPR (%)")
+        ax_fpr.set_title("Baseline (no attacker): client false-positive rate")
+        ax_fpr.grid(True, axis="y", alpha=0.3)
+        ax_fpr.legend(fontsize=9)
         fig_base.suptitle(f"Baseline FP (5000/{pretrain_epochs}ep, no attacker, 3 reps)",
                           fontsize=13)
         fig_base.tight_layout(rect=[0, 0, 1, 0.95])
