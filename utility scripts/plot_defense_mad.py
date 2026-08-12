@@ -22,7 +22,7 @@ import numpy as np
 
 RESULTS_DIR = Path("results")
 
-ALPHAS = [2.0, 2.5, 3.0, 4.0, 7.0, 9.0]
+ALPHAS = [2.0, 3.0, 4.0, 7.0]
 SCALES = [5, 2]
 PRETRAIN_EPOCHS = 50
 LAMBDA = 0.01
@@ -244,7 +244,7 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
     print(f"\nSaved {ber_path}")
 
     # --- Summary figure: metrics vs alpha for each scale ---
-    n_metrics = 3  # detection + d' + final accuracy
+    n_metrics = 2  # exclusion rates + final accuracy
     fig_sum, axes_sum = plt.subplots(n_rows, n_metrics, figsize=(6 * n_metrics, 5 * n_rows))
     axes_sum = np.atleast_2d(axes_sum)
 
@@ -253,7 +253,6 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
         alphas = [r[1] for r in rows]
         tprs = [r[2] for r in rows]
         fprs = [r[3] for r in rows]
-        dprimes = [r[4] for r in rows]
         final_accs = [r[6] for r in rows]
 
         ax = axes_sum[si, 0]
@@ -267,14 +266,6 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
         ax.legend(fontsize=9)
 
         ax = axes_sum[si, 1]
-        ax.plot(alphas, dprimes, "C0-o", linewidth=2, label="d'")
-        ax.set_xlabel("alpha")
-        ax.set_ylabel("d' score")
-        ax.set_title(f"scale={scale}: BER separation (d')")
-        ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=9)
-
-        ax = axes_sum[si, 2]
         ax.plot(alphas, final_accs, "C1-o", linewidth=2, label="Final accuracy")
         ax.set_xlabel("alpha")
         ax.set_ylabel("Accuracy (%)")
@@ -351,28 +342,19 @@ def main(pretrain_epochs=PRETRAIN_EPOCHS):
 
     if base_stats:
         alphas = sorted(base_stats)
-        fp_r_means = [np.mean([x[0] for x in base_stats[a]]) for a in alphas]
-        fp_r_stds = [np.std([x[0] for x in base_stats[a]]) for a in alphas]
         fpr_means = [np.mean([x[1] for x in base_stats[a]]) / np.mean([x[2] for x in base_stats[a]]) * 100
                      for a in alphas]
         fpr_stds = [np.std([x[1] / x[2] * 100 for x in base_stats[a]]) for a in alphas]
 
-        fig_base, axes_base = plt.subplots(1, 2, figsize=(12, 5))
+        fig_base, ax_base = plt.subplots(1, 1, figsize=(7, 5))
         x = np.arange(len(alphas))
-        axes_base[0].bar(x - 0.2, fp_r_means, 0.4, yerr=fp_r_stds, color="C3", label="FP rounds /50")
-        axes_base[0].set_xticks(x, [str(a) for a in alphas])
-        axes_base[0].set_xlabel("alpha")
-        axes_base[0].set_ylabel("FP rounds out of 50")
-        axes_base[0].set_title("Baseline (no attacker): rounds with a false exclusion")
-        axes_base[0].grid(True, axis="y", alpha=0.3)
-        axes_base[0].legend(fontsize=9)
-        axes_base[1].bar(x, fpr_means, 0.4, yerr=fpr_stds, color="C0", label="FPR/client-round")
-        axes_base[1].set_xticks(x, [str(a) for a in alphas])
-        axes_base[1].set_xlabel("alpha")
-        axes_base[1].set_ylabel("FPR (%)")
-        axes_base[1].set_title("Baseline (no attacker): client false-positive rate")
-        axes_base[1].grid(True, axis="y", alpha=0.3)
-        axes_base[1].legend(fontsize=9)
+        ax_base.bar(x, fpr_means, 0.5, yerr=fpr_stds, color="C0", label="FPR/client-round")
+        ax_base.set_xticks(x, [str(a) for a in alphas])
+        ax_base.set_xlabel("alpha")
+        ax_base.set_ylabel("FPR (%)")
+        ax_base.set_title("Baseline (no attacker): client false-positive rate")
+        ax_base.grid(True, axis="y", alpha=0.3)
+        ax_base.legend(fontsize=9)
         fig_base.suptitle(f"Baseline FP (5000/{pretrain_epochs}ep, no attacker, 3 reps)",
                           fontsize=13)
         fig_base.tight_layout(rect=[0, 0, 1, 0.95])
