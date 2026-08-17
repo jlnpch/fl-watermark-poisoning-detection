@@ -25,7 +25,7 @@ for rep in $(seq 1 $REPETITIONS); do
 
   flwr federation simulation-config @none/default local \
       --num-supernodes 10 \
-      --client-resources-num-gpus 0.1 \
+      --client-resources-num-gpus 0.3 \
       --init-args-num-gpus 1 2>&1 || true
 
   flwr run /home2/julian/test/quickstart-pytorch --stream \
