@@ -19,8 +19,8 @@ app = ClientApp()
 def train(msg: Message, context: Context):
     """Train the model on local data."""
     cfg = context.run_config
-    task.DATASET_NAME = cfg.get("dataset-name", "uoft-cs/cifar10")
-    model = create_model(cfg.get("model-name", "resnet18"), cfg.get("num-classes", 10))
+    task.DATASET_NAME = cfg["dataset-name"]
+    model = create_model(cfg["model-name"], cfg["num-classes"])
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -79,10 +79,10 @@ def train(msg: Message, context: Context):
 def evaluate(msg: Message, context: Context):
     """Evaluate the model on local data."""
     cfg = context.run_config
-    task.DATASET_NAME = cfg.get("dataset-name", "uoft-cs/cifar10")
+    task.DATASET_NAME = cfg["dataset-name"]
 
     # Load the model and initialize it with the received weights
-    model = create_model(cfg.get("model-name", "resnet18"), cfg.get("num-classes", 10))
+    model = create_model(cfg["model-name"], cfg["num-classes"])
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
