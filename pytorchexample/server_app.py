@@ -10,9 +10,10 @@ from flwr.serverapp import Grid, ServerApp
 
 from pytorchexample.metrics import MetricsSaver
 from pytorchexample.run_registry import log_run
-from pytorchexample.task import Net, compute_asr, load_centralized_dataset, load_server_pretrain_data
+from pytorchexample.task import create_model, compute_asr, load_centralized_dataset, load_server_pretrain_data
 from pytorchexample.task import pretrain_with_watermark as server_pretrain
 from pytorchexample.task import test
+import pytorchexample.task as task
 from pytorchexample.watermark import create_watermark
 from pytorchexample.watermarked_strategy import WatermarkedFedAvg
 
@@ -46,11 +47,12 @@ def main(grid: Grid, context: Context) -> None:
     metrics_saver.run_id = run_id
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    task.DATASET_NAME = cfg.get("dataset-name", "uoft-cs/cifar10")
     watermark = create_watermark(cfg)
-    global_model = Net()
+    global_model = create_model(cfg.get("model-name", "resnet18"), cfg.get("num-classes", 10))
     global_model.to(device)
 
-    log(INFO, "Loading %d CIFAR-10 training samples for server pretraining...", server_private_samples)
+    log(INFO, "Loading %d training samples for server pretraining...", server_private_samples)
     pretrain_loader = load_server_pretrain_data(num_samples=server_private_samples, batch_size=64)
 
     wd = cfg["weight-decay"]
@@ -92,7 +94,7 @@ def main(grid: Grid, context: Context) -> None:
     # Define global evaluation function (captures context via closure)
     def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
         """Evaluate model on central data, including ASR for label-flip attacks."""
-        model = Net()
+        model = create_model(cfg.get("model-name", "resnet18"), cfg.get("num-classes", 10))
         model.load_state_dict(arrays.to_torch_state_dict())
         model.to(device)
         test_dataloader = load_centralized_dataset()

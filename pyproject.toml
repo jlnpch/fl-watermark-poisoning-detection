@@ -39,12 +39,17 @@ batch-size = 32
 save-model = false
 results-dir = "/home2/julian/test/quickstart-pytorch/results"
 
+# Model & dataset
+model-name = "vgg16"              # "resnet18" | "vgg16"
+num-classes = 10
+dataset-name = "uoft-cs/cifar10"  # HuggingFace dataset identifier
+
 # Watermark
 watermark-type = "uchida"
 watermark-message = "uchida"
 # 128-bit default: redundant bits flatten run-to-run variance of extracted BER
 watermark-num-bits = 128
-watermark-layer = "backbone.fc.weight"
+watermark-layer = "classifier.6.weight"
 watermark-lambda = 0.01
 
 # Server pretraining — absolute sample count from CIFAR-10 training set (50k total)
@@ -82,4 +87,3 @@ sign-flip-scale = 1.0
 label-flip-source = 9
 label-flip-target = 2
 label-flip-scale = 1.0
-num-classes = 10

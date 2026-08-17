@@ -5,9 +5,10 @@ from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 
 from pytorchexample.attack import create_attack
-from pytorchexample.task import Net, load_data
+from pytorchexample.task import create_model, load_data
 from pytorchexample.task import test as test_fn
 from pytorchexample.task import train as train_fn
+import pytorchexample.task as task
 from pytorchexample.watermark import create_watermark
 
 # Flower ClientApp
@@ -18,7 +19,8 @@ app = ClientApp()
 def train(msg: Message, context: Context):
     """Train the model on local data."""
     cfg = context.run_config
-    model = Net()
+    task.DATASET_NAME = cfg.get("dataset-name", "uoft-cs/cifar10")
+    model = create_model(cfg.get("model-name", "resnet18"), cfg.get("num-classes", 10))
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -76,9 +78,11 @@ def train(msg: Message, context: Context):
 @app.evaluate()
 def evaluate(msg: Message, context: Context):
     """Evaluate the model on local data."""
+    cfg = context.run_config
+    task.DATASET_NAME = cfg.get("dataset-name", "uoft-cs/cifar10")
 
     # Load the model and initialize it with the received weights
-    model = Net()
+    model = create_model(cfg.get("model-name", "resnet18"), cfg.get("num-classes", 10))
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)

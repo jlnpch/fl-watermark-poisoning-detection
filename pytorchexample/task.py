@@ -5,8 +5,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
-from torchvision.models import resnet18
+from torchvision.models import resnet18, vgg16
 from torchvision.transforms import Compose, Normalize, ToTensor
+
+DATASET_NAME = "uoft-cs/cifar10"  # overridden at runtime via run_config["dataset-name"]
 
 class Net(nn.Module):
     """ResNet-18 adapted for CIFAR-10 (32x32 inputs)."""
@@ -19,6 +21,44 @@ class Net(nn.Module):
 
     def forward(self, x):
         return self.backbone(x)
+
+
+class VGG16Net(nn.Module):
+    """VGG-16 adapted for CIFAR-10/100 (32x32 inputs)."""
+
+    def __init__(self, num_classes=10):
+        super(VGG16Net, self).__init__()
+        vgg = vgg16(weights=None)
+        self.features = vgg.features
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
+        self.classifier = nn.Sequential(
+            nn.Linear(512 * 7 * 7, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(4096, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        return self.classifier(x)
+
+
+_MODELS = {
+    "resnet18": lambda nc: Net(num_classes=nc),
+    "vgg16": lambda nc: VGG16Net(num_classes=nc),
+}
+
+
+def create_model(model_name="resnet18", num_classes=10):
+    """Factory: create a model by name."""
+    if model_name not in _MODELS:
+        raise ValueError(f"Unknown model '{model_name}'. Available: {list(_MODELS)}")
+    return _MODELS[model_name](num_classes)
 
 
 fds = None  # Cached client dataset (remaining after server's private slice)
@@ -54,12 +94,12 @@ def _build_dirichlet_partitions(dataset, num_partitions, alpha, num_classes=10, 
 def load_data(partition_id: int, num_partitions: int, batch_size: int,
               server_private_samples: int = 5000, client_samples: int = 4000,
               partition_type: str = "iid", partition_alpha: float = 0.5):
-    """Load partition CIFAR10 data. Server takes first server_private_samples exclusively."""
+    """Load partition data. Server takes first server_private_samples exclusively."""
     from datasets import load_dataset
     import numpy as np
     global fds, _partition_indices
     if fds is None:
-        full = load_dataset("uoft-cs/cifar10", split="train")
+        full = load_dataset(DATASET_NAME, split="train")
         full = full.shuffle(seed=42)
         # Skip server's private portion, take the rest for clients
         dataset = full.select(range(server_private_samples, len(full)))
@@ -109,9 +149,9 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
 
 
 def load_server_pretrain_data(num_samples=5000, batch_size=64):
-    """Load the first num_samples of CIFAR-10 training set for server-side pretraining."""
+    """Load the first num_samples of training set for server-side pretraining."""
     from datasets import load_dataset
-    dataset = load_dataset("uoft-cs/cifar10", split="train")
+    dataset = load_dataset(DATASET_NAME, split="train")
     dataset = dataset.shuffle(seed=42)
     dataset = dataset.select(range(num_samples))
     dataset = dataset.with_format("torch").with_transform(apply_transforms)
@@ -121,7 +161,7 @@ def load_server_pretrain_data(num_samples=5000, batch_size=64):
 def load_centralized_dataset(batch_size=128):
     """Load test set and return dataloader."""
     from datasets import load_dataset
-    test_dataset = load_dataset("uoft-cs/cifar10", split="test")
+    test_dataset = load_dataset(DATASET_NAME, split="test")
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=batch_size)
 
