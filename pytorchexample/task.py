@@ -143,17 +143,19 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
                 item = self.subset[idx]
                 img = pytorch_transforms(item["img"])
                 return {"img": img, "label": item["label"]}
-        trainloader = DataLoader(_TransformedSubset(train_dataset), batch_size=batch_size, shuffle=True)
-        testloader = DataLoader(_TransformedSubset(test_dataset), batch_size=batch_size)
+        trainloader = DataLoader(_TransformedSubset(train_dataset), batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
+        testloader = DataLoader(_TransformedSubset(test_dataset), batch_size=batch_size, num_workers=2, pin_memory=True)
         return trainloader, testloader
     else:
         partition = fds.shard(num_partitions, partition_id, contiguous=True)
         partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
         partition_train_test = partition_train_test.with_transform(apply_transforms)
         trainloader = DataLoader(
-            partition_train_test["train"], batch_size=batch_size, shuffle=True
+            partition_train_test["train"], batch_size=batch_size, shuffle=True,
+            num_workers=2, pin_memory=True
         )
-        testloader = DataLoader(partition_train_test["test"], batch_size=batch_size)
+        testloader = DataLoader(partition_train_test["test"], batch_size=batch_size,
+                               num_workers=2, pin_memory=True)
         return trainloader, testloader
 
 
@@ -165,7 +167,7 @@ def load_server_pretrain_data(num_samples=5000, batch_size=64):
     dataset = _normalize_columns(dataset)
     dataset = dataset.select(range(num_samples))
     dataset = dataset.with_format("torch").with_transform(apply_transforms)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
 
 def load_centralized_dataset(batch_size=128):
@@ -174,14 +176,15 @@ def load_centralized_dataset(batch_size=128):
     test_dataset = load_dataset(DATASET_NAME, split="test")
     test_dataset = _normalize_columns(test_dataset)
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
-    return DataLoader(dataset, batch_size=batch_size)
+    return DataLoader(dataset, batch_size=batch_size, num_workers=2, pin_memory=True)
 
 
 def train(net, trainloader, epochs, lr, device, weight_decay=0.0):
     """Train the model on the training set."""
-    net.to(device)  # move model to GPU if available
+    net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+    scaler = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
     net.train()
     running_loss = 0.0
     for _ in range(epochs):
@@ -189,9 +192,15 @@ def train(net, trainloader, epochs, lr, device, weight_decay=0.0):
             images = batch["img"].to(device)
             labels = batch["label"].to(device)
             optimizer.zero_grad()
-            loss = criterion(net(images), labels)
-            loss.backward()
-            optimizer.step()
+            with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                loss = criterion(net(images), labels)
+            if scaler is not None:
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
             running_loss += loss.item()
     avg_trainloss = running_loss / (epochs * len(trainloader))
     return avg_trainloss
@@ -206,8 +215,9 @@ def test(net, testloader, device):
         for batch in testloader:
             images = batch["img"].to(device)
             labels = batch["label"].to(device)
-            outputs = net(images)
-            loss += criterion(outputs, labels).item()
+            with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                outputs = net(images)
+                loss += criterion(outputs, labels).item()
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
     accuracy = correct / len(testloader.dataset)
     loss = loss / len(testloader)
@@ -224,7 +234,8 @@ def compute_asr(net, testloader, source_class, target_class, device):
         for batch in testloader:
             images = batch["img"].to(device)
             labels = batch["label"].to(device)
-            outputs = net(images)
+            with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                outputs = net(images)
             preds = outputs.argmax(dim=1)
             source_mask = labels == source_class
             total += source_mask.sum().item()
@@ -243,6 +254,7 @@ def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lam
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+    scaler = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
     net.train()
 
     per_epoch = []
@@ -255,14 +267,19 @@ def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lam
             labels = batch["label"].to(device)
 
             optimizer.zero_grad()
-            outputs = net(images)
-            task_loss = criterion(outputs, labels)
+            with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                outputs = net(images)
+                task_loss = criterion(outputs, labels)
+                wm_loss = watermark.regularization_loss(net)
+                loss = task_loss + lambda_reg * wm_loss
 
-            wm_loss = watermark.regularization_loss(net)
-            loss = task_loss + lambda_reg * wm_loss
-
-            loss.backward()
-            optimizer.step()
+            if scaler is not None:
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
 
             total_task += task_loss.item()
             total_wm += wm_loss.item()
