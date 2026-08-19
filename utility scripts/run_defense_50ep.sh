@@ -2,7 +2,7 @@
 # Semi-fragility defense evaluation for 5000/50 config
 # 1 label_flip + 6 sign_flip = 7 configs × 3 reps = 21 runs
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 REPETITIONS=3
 
@@ -53,7 +53,7 @@ for i in $(seq 0 $((${#CONFIGS[@]} - 1))); do
         --client-resources-num-gpus 0.1 \
         --init-args-num-gpus 1 2>&1 || true
 
-    flwr run /home2/julian/test/quickstart-pytorch --stream \
+    flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
         --run-config "${CONFIGS[$i]}" || true
 
     kill $SUPERLINK_PID 2>/dev/null || true

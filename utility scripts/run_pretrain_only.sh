@@ -2,7 +2,7 @@
 # Pretrain-only runs: 6 lambdas × 3 reps for BOTH 30ep and 50ep configs (36 runs)
 # Skips federated rounds (pretrain-only=true) — only the pretrain CSV is produced.
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 LAMBDA_VALUES=(0.005 0.01 0.05 0.1 0.25 0.75)
 CONFIGS=(30 50)
@@ -35,7 +35,7 @@ for EP in "${CONFIGS[@]}"; do
           --client-resources-num-gpus 0.1 \
           --init-args-num-gpus 1 2>&1 || true
 
-      flwr run /home2/julian/test/quickstart-pytorch --stream \
+      flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
           --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=$EP attacker-type=\"none\" pretrain-only=true watermark-lambda=$LAM" || true
 
       kill $SUPERLINK_PID 2>/dev/null || true

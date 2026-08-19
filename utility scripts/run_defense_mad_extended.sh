@@ -5,7 +5,7 @@
 #         baseline 3 alphas x 3 reps x 2 epochs = 18
 #         total = 54 runs
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 EPOCHS=(30 50)
 SCALES=(5 2)
@@ -40,7 +40,7 @@ for EPOCHS_VAL in "${EPOCHS[@]}"; do
             --client-resources-num-gpus 0.1 \
             --init-args-num-gpus 1 2>&1 || true
 
-        flwr run /home2/julian/test/quickstart-pytorch --stream \
+        flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
             --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=$EPOCHS_VAL watermark-lambda=0.01 watermark-num-bits=128 attacker-type=\"sign_flip\" attacker-fraction=0.1 sign-flip-scale=$SCALE defense-method=\"mad\" mad-alpha=$ALPHA" || true
 
         kill $SUPERLINK_PID 2>/dev/null || true
@@ -76,7 +76,7 @@ for EPOCHS_VAL in "${EPOCHS[@]}"; do
           --client-resources-num-gpus 0.1 \
           --init-args-num-gpus 1 2>&1 || true
 
-      flwr run /home2/julian/test/quickstart-pytorch --stream \
+      flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
           --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=$EPOCHS_VAL watermark-lambda=0.01 watermark-num-bits=128 attacker-type=\"none\" attacker-fraction=0 defense-method=\"mad\" mad-alpha=$ALPHA" || true
 
       kill $SUPERLINK_PID 2>/dev/null || true

@@ -37,7 +37,7 @@ learning-rate = 0.01
 weight-decay = 0.0005
 batch-size = 32
 save-model = false
-results-dir = "/home2/julian/test/quickstart-pytorch/results"
+results-dir = "/home2/julian/test/fl-watermark-poisoning-detection/results"
 
 # Model & dataset
 model-name = "vgg16"              # "resnet18" | "vgg16"

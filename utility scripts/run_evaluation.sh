@@ -4,7 +4,7 @@
 #        10 supernodes (9 honest + 1 attacker), BER threshold 0.25
 
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 REPETITIONS=3
 
@@ -57,7 +57,7 @@ for i in $(seq 0 $((${#CONFIGS[@]} - 1))); do
         --init-args-num-gpus 1 2>&1 || true
 
     # Run experiment
-    flwr run /home2/julian/test/quickstart-pytorch --stream \
+    flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
         --run-config "${CONFIGS[$i]}" || true
 
     # Kill superlink

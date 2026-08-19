@@ -4,7 +4,7 @@
 # Already have λ=0.01 from original baseline sweep
 
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 LAMBDA_VALUES=(0.005 0.05 0.1 0.25 0.75)
 REPETITIONS=3
@@ -39,7 +39,7 @@ for LAM in "${LAMBDA_VALUES[@]}"; do
         --init-args-num-gpus 1 2>&1 || true
 
     # Run experiment (no attack, clean baseline)
-    flwr run /home2/julian/test/quickstart-pytorch --stream \
+    flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
         --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=30 attacker-type=\"none\" watermark-lambda=$LAM" || true
 
     # Kill superlink

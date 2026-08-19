@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
-from torchvision.models import resnet18, vgg16
+from torchvision.models import resnet18, vgg16_bn
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 DATASET_NAME = "uoft-cs/cifar10"  # overridden at runtime via run_config["dataset-name"]
@@ -28,7 +28,7 @@ class VGG16Net(nn.Module):
 
     def __init__(self, num_classes=10):
         super(VGG16Net, self).__init__()
-        vgg = vgg16(weights=None)
+        vgg = vgg16_bn(weights=None)
         self.features = vgg.features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
@@ -64,6 +64,13 @@ def create_model(model_name="resnet18", num_classes=10):
 fds = None  # Cached client dataset (remaining after server's private slice)
 _partition_indices = None  # Cached Dirichlet partition assignments
 
+
+def _normalize_columns(dataset):
+    """Rename 'fine_label' → 'label' for CIFAR-100 compatibility."""
+    if "fine_label" in dataset.column_names and "label" not in dataset.column_names:
+        dataset = dataset.rename_column("fine_label", "label")
+    return dataset
+
 CIFAR10_TRAIN_SIZE = 50000
 
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -93,7 +100,8 @@ def _build_dirichlet_partitions(dataset, num_partitions, alpha, num_classes=10, 
 
 def load_data(partition_id: int, num_partitions: int, batch_size: int,
               server_private_samples: int = 5000, client_samples: int = 4000,
-              partition_type: str = "iid", partition_alpha: float = 0.5):
+              partition_type: str = "iid", partition_alpha: float = 0.5,
+              num_classes: int = 10):
     """Load partition data. Server takes first server_private_samples exclusively."""
     from datasets import load_dataset
     import numpy as np
@@ -101,6 +109,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
     if fds is None:
         full = load_dataset(DATASET_NAME, split="train")
         full = full.shuffle(seed=42)
+        full = _normalize_columns(full)
         # Skip server's private portion, take the rest for clients
         dataset = full.select(range(server_private_samples, len(full)))
         # Cap total client samples to client_samples * num_partitions
@@ -110,7 +119,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
         fds = dataset
         if partition_type == "dirichlet":
             _partition_indices = _build_dirichlet_partitions(
-                fds, num_partitions, partition_alpha, seed=42
+                fds, num_partitions, partition_alpha, num_classes=num_classes, seed=42
             )
 
     if partition_type == "dirichlet":
@@ -153,6 +162,7 @@ def load_server_pretrain_data(num_samples=5000, batch_size=64):
     from datasets import load_dataset
     dataset = load_dataset(DATASET_NAME, split="train")
     dataset = dataset.shuffle(seed=42)
+    dataset = _normalize_columns(dataset)
     dataset = dataset.select(range(num_samples))
     dataset = dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -162,6 +172,7 @@ def load_centralized_dataset(batch_size=128):
     """Load test set and return dataloader."""
     from datasets import load_dataset
     test_dataset = load_dataset(DATASET_NAME, split="test")
+    test_dataset = _normalize_columns(test_dataset)
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=batch_size)
 

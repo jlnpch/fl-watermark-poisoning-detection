@@ -7,7 +7,7 @@
 #   - 50ep attack scale5+scale2 alpha4/7/9 x3 reps (18)
 #   - 50ep baseline alpha4/7/9 x3 reps (9)
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 # format: epochs|scale_or_BASELINE|alpha|reps
 CONFIGS=(
@@ -61,10 +61,10 @@ for c in "${CONFIGS[@]}"; do
         --init-args-num-gpus 1 2>&1 || true
 
     if [ "$SC" = "BASELINE" ]; then
-      flwr run /home2/julian/test/quickstart-pytorch --stream \
+      flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
           --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=$EP watermark-lambda=0.01 watermark-num-bits=128 attacker-type=\"none\" attacker-fraction=0 defense-method=\"mad\" mad-alpha=$AL" || true
     else
-      flwr run /home2/julian/test/quickstart-pytorch --stream \
+      flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
           --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=$EP watermark-lambda=0.01 watermark-num-bits=128 attacker-type=\"sign_flip\" attacker-fraction=0.1 sign-flip-scale=$SC defense-method=\"mad\" mad-alpha=$AL" || true
     fi
 

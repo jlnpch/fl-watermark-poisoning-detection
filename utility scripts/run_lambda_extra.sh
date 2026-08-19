@@ -4,7 +4,7 @@
 #        10 supernodes, sign_flip scale=5, BER threshold 0.25
 
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 LAMBDA_VALUES=(0.25 0.75)
 REPETITIONS=3
@@ -39,7 +39,7 @@ for LAM in "${LAMBDA_VALUES[@]}"; do
         --init-args-num-gpus 1 2>&1 || true
 
     # Run experiment
-    flwr run /home2/julian/test/quickstart-pytorch --stream \
+    flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
         --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=30 attacker-fraction=0.1 max-trusted-ber=0.25 partition-type=\"iid\" local-epochs=1 batch-size=32 attacker-type=\"sign_flip\" sign-flip-scale=5.0 watermark-lambda=$LAM label-flip-scale=1.0" || true
 
     # Kill superlink

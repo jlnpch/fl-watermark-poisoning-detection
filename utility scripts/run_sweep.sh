@@ -3,7 +3,7 @@
 # Total: 4 × 3 × 3 = 36 runs
 
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 SERVER_SIZES=(500 2500 5000 10000)
 PRETRAIN_EPOCHS=(10 30 50)
@@ -41,7 +41,7 @@ for samples in "${SERVER_SIZES[@]}"; do
           --init-args-num-gpus 1 2>&1 || true
 
       # Run experiment
-      flwr run /home2/julian/test/quickstart-pytorch --stream \
+      flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
           --run-config "num-server-rounds=$NUM_ROUNDS server-private-samples=$samples pretrain-epochs=$epochs attacker-type=\"none\" partition-type=\"iid\"" || true
 
       # Kill superlink

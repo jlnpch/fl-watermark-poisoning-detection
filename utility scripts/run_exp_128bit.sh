@@ -2,7 +2,7 @@
 # Experiment: 128-bit watermark, baseline lambda sweep (no attacker).
 # 6 lambdas x 3 reps, 50ep / 5000-sample config, full FL rounds.
 export PATH="/home/julian/.local/bin:$PATH"
-cd /home2/julian/test/quickstart-pytorch
+cd /home2/julian/test/fl-watermark-poisoning-detection
 
 LAMBDA_VALUES=(0.005 0.01 0.05 0.1 0.25 0.75)
 REPETITIONS=3
@@ -33,7 +33,7 @@ for LAM in "${LAMBDA_VALUES[@]}"; do
         --client-resources-num-gpus 0.1 \
         --init-args-num-gpus 1 2>&1 || true
 
-    flwr run /home2/julian/test/quickstart-pytorch --stream \
+    flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
         --run-config "num-server-rounds=50 server-private-samples=5000 pretrain-epochs=50 attacker-type=\"none\" watermark-num-bits=128 watermark-lambda=$LAM" || true
 
     kill $SUPERLINK_PID 2>/dev/null || true
