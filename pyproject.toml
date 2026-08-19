@@ -65,7 +65,7 @@ partition-alpha = 0.5
 client-samples = 4000
 
 # Early stopping
-early-stopping-patience = 0
+early-stopping-patience = 15
 early-stopping-delta = 0.001
 
 # Attacker
