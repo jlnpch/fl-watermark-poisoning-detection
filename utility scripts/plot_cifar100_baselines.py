@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Plot CIFAR-100 VGG-16 (no-BN) baseline runs — accuracy & BER evolution.
+"""Plot CIFAR-100 VGG-16-BN baseline runs — accuracy & BER evolution.
 
-Two conditions, 3 reps each:
-  - No-watermark (λ=0):   183531, 195522, 211532
-  - Watermark (λ=0.01):   223536, 235521, 011534
+Two conditions, 1 rep each (200 rounds):
+  - No-watermark (λ=0):   20260819_135755
+  - Watermark (λ=0.01):   20260819_163844
 """
 
 import csv
@@ -19,9 +19,9 @@ RESULTS_DIR = Path("results")
 PLOT_DIR = RESULTS_DIR / "plots" / "cifar100_vgg16"
 PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Run IDs from run_registry
-BASELINE_RUNS = ["20260818_183531", "20260818_195522", "20260818_211532"]
-WATERMARK_RUNS = ["20260818_223536", "20260818_235521", "20260819_011534"]
+# Run IDs from run_registry (VGG-16-BN, 200 rounds)
+BASELINE_RUNS = ["20260819_135755"]
+WATERMARK_RUNS = ["20260819_163844"]
 
 
 def load_server_data(run_id):
@@ -59,31 +59,26 @@ def interpolate(common_rounds, rep_data):
 def plot_accuracy():
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # No-watermark
-    baseline_data = [load_server_data(rid) for rid in BASELINE_RUNS]
-    min_r = max(d[0][0] for d in baseline_data)
-    max_r = min(d[0][-1] for d in baseline_data)
-    cr = list(range(min_r, max_r + 1))
-    mat = interpolate(cr, [(d[0], d[1]) for d in baseline_data])
-    mean_bl = np.nanmean(mat, axis=0)
-    std_bl = np.nanstd(mat, axis=0)
-    ax.plot(cr, mean_bl, "-", color="C0", linewidth=2, label="No watermark (λ=0)")
-    ax.fill_between(cr, mean_bl - std_bl, mean_bl + std_bl, color="C0", alpha=0.15)
-
-    # Watermark
-    wm_data = [load_server_data(rid) for rid in WATERMARK_RUNS]
-    min_r = max(d[0][0] for d in wm_data)
-    max_r = min(d[0][-1] for d in wm_data)
-    cr2 = list(range(min_r, max_r + 1))
-    mat2 = interpolate(cr2, [(d[0], d[1]) for d in wm_data])
-    mean_wm = np.nanmean(mat2, axis=0)
-    std_wm = np.nanstd(mat2, axis=0)
-    ax.plot(cr2, mean_wm, "-", color="C1", linewidth=2, label="Watermark (λ=0.01)")
-    ax.fill_between(cr2, mean_wm - std_wm, mean_wm + std_wm, color="C1", alpha=0.15)
+    for runs, color, label in [(BASELINE_RUNS, "C0", "No watermark (λ=0)"),
+                                (WATERMARK_RUNS, "C1", "Watermark (λ=0.01)")]:
+        data = [load_server_data(rid) for rid in runs]
+        min_r = max(d[0][0] for d in data)
+        max_r = min(d[0][-1] for d in data)
+        cr = list(range(min_r, max_r + 1))
+        mat = interpolate(cr, [(d[0], d[1]) for d in data])
+        mean = np.nanmean(mat, axis=0)
+        ax.plot(cr, mean, "-", color=color, linewidth=2, label=label)
+        if len(runs) > 1:
+            std = np.nanstd(mat, axis=0)
+            ax.fill_between(cr, mean - std, mean + std, color=color, alpha=0.15)
+            for i, (rnds, accs, _) in enumerate(data):
+                ax.plot(rnds, accs, "--", color=color, alpha=0.3, linewidth=1)
+        else:
+            ax.plot(data[0][0], data[0][1], "--", color=color, alpha=0.4, linewidth=1, label="_nolegend_")
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Accuracy (%)", fontsize=12)
-    ax.set_title("CIFAR-100 VGG-16 — Accuracy Evolution\n(3 reps, 50 pretrain epochs, IID, 10 clients)", fontsize=13)
+    ax.set_title("CIFAR-100 VGG-16-BN — Accuracy Evolution\n(1 rep, 200 FL rounds, 50 pretrain epochs)", fontsize=13)
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=11)
     fig.tight_layout()
@@ -95,29 +90,26 @@ def plot_accuracy():
 def plot_loss():
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    baseline_data = [load_server_data(rid) for rid in BASELINE_RUNS]
-    min_r = max(d[0][0] for d in baseline_data)
-    max_r = min(d[0][-1] for d in baseline_data)
-    cr = list(range(min_r, max_r + 1))
-    mat = interpolate(cr, [(d[0], d[2]) for d in baseline_data])
-    mean_bl = np.nanmean(mat, axis=0)
-    std_bl = np.nanstd(mat, axis=0)
-    ax.plot(cr, mean_bl, "-", color="C0", linewidth=2, label="No watermark (λ=0)")
-    ax.fill_between(cr, mean_bl - std_bl, mean_bl + std_bl, color="C0", alpha=0.15)
-
-    wm_data = [load_server_data(rid) for rid in WATERMARK_RUNS]
-    min_r = max(d[0][0] for d in wm_data)
-    max_r = min(d[0][-1] for d in wm_data)
-    cr2 = list(range(min_r, max_r + 1))
-    mat2 = interpolate(cr2, [(d[0], d[2]) for d in wm_data])
-    mean_wm = np.nanmean(mat2, axis=0)
-    std_wm = np.nanstd(mat2, axis=0)
-    ax.plot(cr2, mean_wm, "-", color="C1", linewidth=2, label="Watermark (λ=0.01)")
-    ax.fill_between(cr2, mean_wm - std_wm, mean_wm + std_wm, color="C1", alpha=0.15)
+    for runs, color, label in [(BASELINE_RUNS, "C0", "No watermark (λ=0)"),
+                                (WATERMARK_RUNS, "C1", "Watermark (λ=0.01)")]:
+        data = [load_server_data(rid) for rid in runs]
+        min_r = max(d[0][0] for d in data)
+        max_r = min(d[0][-1] for d in data)
+        cr = list(range(min_r, max_r + 1))
+        mat = interpolate(cr, [(d[0], d[2]) for d in data])
+        mean = np.nanmean(mat, axis=0)
+        ax.plot(cr, mean, "-", color=color, linewidth=2, label=label)
+        if len(runs) > 1:
+            std = np.nanstd(mat, axis=0)
+            ax.fill_between(cr, mean - std, mean + std, color=color, alpha=0.15)
+            for i, (rnds, _, losses) in enumerate(data):
+                ax.plot(rnds, losses, "--", color=color, alpha=0.3, linewidth=1)
+        else:
+            ax.plot(data[0][0], data[0][2], "--", color=color, alpha=0.4, linewidth=1, label="_nolegend_")
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
-    ax.set_title("CIFAR-100 VGG-16 — Loss Evolution\n(3 reps, 50 pretrain epochs, IID, 10 clients)", fontsize=13)
+    ax.set_title("CIFAR-100 VGG-16-BN — Loss Evolution\n(1 rep, 200 FL rounds, 50 pretrain epochs)", fontsize=13)
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=11)
     fig.tight_layout()
@@ -129,31 +121,26 @@ def plot_loss():
 def plot_ber():
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Watermark runs BER
-    wm_data = [load_train_ber(rid) for rid in WATERMARK_RUNS]
-    min_r = max(d[0][0] for d in wm_data)
-    max_r = min(d[0][-1] for d in wm_data)
-    cr = list(range(min_r, max_r + 1))
-    mat = interpolate(cr, wm_data)
-    mean_wm = np.nanmean(mat, axis=0)
-    std_wm = np.nanstd(mat, axis=0)
-    ax.plot(cr, mean_wm, "-", color="C1", linewidth=2, label="Watermark (λ=0.01)")
-    ax.fill_between(cr, mean_wm - std_wm, mean_wm + std_wm, color="C1", alpha=0.15)
-
-    # Baseline runs BER
-    bl_data = [load_train_ber(rid) for rid in BASELINE_RUNS]
-    min_r2 = max(d[0][0] for d in bl_data)
-    max_r2 = min(d[0][-1] for d in bl_data)
-    cr2 = list(range(min_r2, max_r2 + 1))
-    mat2 = interpolate(cr2, bl_data)
-    mean_bl = np.nanmean(mat2, axis=0)
-    std_bl = np.nanstd(mat2, axis=0)
-    ax.plot(cr2, mean_bl, "--", color="C0", linewidth=2, label="No watermark (λ=0)")
-    ax.fill_between(cr2, mean_bl - std_bl, mean_bl + std_bl, color="C0", alpha=0.15)
+    for runs, color, label in [(WATERMARK_RUNS, "C1", "Watermark (λ=0.01)"),
+                                (BASELINE_RUNS, "C0", "No watermark (λ=0)")]:
+        data = [load_train_ber(rid) for rid in runs]
+        min_r = max(d[0][0] for d in data)
+        max_r = min(d[0][-1] for d in data)
+        cr = list(range(min_r, max_r + 1))
+        mat = interpolate(cr, data)
+        mean = np.nanmean(mat, axis=0)
+        ax.plot(cr, mean, "-" if color == "C1" else "--", color=color, linewidth=2, label=label)
+        if len(runs) > 1:
+            std = np.nanstd(mat, axis=0)
+            ax.fill_between(cr, mean - std, mean + std, color=color, alpha=0.15)
+            for rnds, bers in data:
+                ax.plot(rnds, bers, "--", color=color, alpha=0.3, linewidth=1)
+        else:
+            ax.plot(data[0][0], data[0][1], "--", color=color, alpha=0.4, linewidth=1, label="_nolegend_")
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Watermark BER", fontsize=12)
-    ax.set_title("CIFAR-100 VGG-16 — BER Evolution\n(3 reps, 50 pretrain epochs, IID, 10 clients)", fontsize=13)
+    ax.set_title("CIFAR-100 VGG-16-BN — BER Evolution\n(1 rep, 200 FL rounds, 50 pretrain epochs)", fontsize=13)
     ax.grid(True, alpha=0.3)
     ax.set_ylim(-0.05, 0.65)
     ax.legend(fontsize=11)
