@@ -37,14 +37,14 @@ def load_server_data(run_id):
 
 
 def load_train_ber(run_id):
-    """Return (rounds, mean_ber_per_round)."""
+    """Return (rounds, mean_ber_per_round, std_ber_per_round)."""
     path = RESULTS_DIR / f"run_{run_id}_train.csv"
     by_round = defaultdict(list)
     with open(path) as f:
         for row in csv.DictReader(f):
             by_round[int(row["round"])].append(float(row["watermark_ber"]))
     rounds = sorted(by_round)
-    return rounds, [np.mean(by_round[r]) for r in rounds]
+    return rounds, [np.mean(by_round[r]) for r in rounds], [np.std(by_round[r]) for r in rounds]
 
 
 def interpolate(common_rounds, rep_data):
@@ -121,22 +121,25 @@ def plot_loss():
 def plot_ber():
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    for runs, color, label in [(WATERMARK_RUNS, "C1", "Watermark (λ=0.01)"),
-                                (BASELINE_RUNS, "C0", "No watermark (λ=0)")]:
+    for runs, color, ls, label in [(WATERMARK_RUNS, "C1", "-", "Watermark (λ=0.01)"),
+                                    (BASELINE_RUNS, "C0", "--", "No watermark (λ=0)")]:
         data = [load_train_ber(rid) for rid in runs]
-        min_r = max(d[0][0] for d in data)
-        max_r = min(d[0][-1] for d in data)
-        cr = list(range(min_r, max_r + 1))
-        mat = interpolate(cr, data)
-        mean = np.nanmean(mat, axis=0)
-        ax.plot(cr, mean, "-" if color == "C1" else "--", color=color, linewidth=2, label=label)
-        if len(runs) > 1:
-            std = np.nanstd(mat, axis=0)
-            ax.fill_between(cr, mean - std, mean + std, color=color, alpha=0.15)
-            for rnds, bers in data:
-                ax.plot(rnds, bers, "--", color=color, alpha=0.3, linewidth=1)
-        else:
-            ax.plot(data[0][0], data[0][1], "--", color=color, alpha=0.4, linewidth=1, label="_nolegend_")
+        all_rounds = sorted(set(r for d in data for r in d[0]))
+        # Interpolate means and stds across common rounds
+        mean_mat = []
+        std_mat = []
+        for rnds, means, stds in data:
+            rmap_m = dict(zip(rnds, means))
+            rmap_s = dict(zip(rnds, stds))
+            mean_mat.append([rmap_m.get(r, np.nan) for r in all_rounds])
+            std_mat.append([rmap_s.get(r, np.nan) for r in all_rounds])
+        mean_mat = np.array(mean_mat)
+        std_mat = np.array(std_mat)
+        agg_mean = np.nanmean(mean_mat, axis=0)
+        agg_std = np.nanmean(std_mat, axis=0)  # average per-client std across reps
+        ax.plot(all_rounds, agg_mean, ls, color=color, linewidth=2, label=label)
+        ax.fill_between(all_rounds, agg_mean - agg_std, agg_mean + agg_std,
+                        color=color, alpha=0.2)
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Watermark BER", fontsize=12)

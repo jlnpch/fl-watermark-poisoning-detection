@@ -69,7 +69,8 @@ def load_train_csv(run_id):
             by_round[int(row["round"])].append(float(row["watermark_ber"]))
     rounds = sorted(by_round)
     bers = [np.mean(by_round[r]) for r in rounds]
-    return rounds, bers
+    stds = [np.std(by_round[r]) for r in rounds]
+    return rounds, bers, stds
 
 
 def load_pretrain_csv(run_id):
@@ -185,21 +186,27 @@ def main():
     # --- BER ---
     if train_ber_data:
         fig, ax = plt.subplots(figsize=(10, 6))
-        min_r = max(d[0][0] for d in train_ber_data)
-        max_r = min(d[0][-1] for d in train_ber_data)
-        common_rounds_ber = list(range(min_r, max_r + 1))
-        ber_matrix = interpolate(common_rounds_ber, train_ber_data)
-        ber_mean = np.nanmean(ber_matrix, axis=0)
-        ber_std = np.nanstd(ber_matrix, axis=0)
+        all_rounds_ber = sorted(set(r for d in train_ber_data for r in d[0]))
+        # For each rep, interpolate mean and std onto common rounds
+        mean_mat, std_mat = [], []
+        for rnds, bers, stds in train_ber_data:
+            rmap_m = dict(zip(rnds, bers))
+            rmap_s = dict(zip(rnds, stds))
+            mean_mat.append([rmap_m.get(r, np.nan) for r in all_rounds_ber])
+            std_mat.append([rmap_s.get(r, np.nan) for r in all_rounds_ber])
+        mean_mat = np.array(mean_mat)
+        std_mat = np.array(std_mat)
+        agg_mean = np.nanmean(mean_mat, axis=0)
+        agg_std = np.nanmean(std_mat, axis=0)
 
-        for i, (rnds, bers) in enumerate(train_ber_data):
+        for i, (rnds, bers, _) in enumerate(train_ber_data):
             ax.plot(rnds, bers, "--", alpha=0.3, linewidth=1,
                     label=f"Rep {i+1}" if i < 5 else None)
 
-        ax.plot(common_rounds_ber, ber_mean, "-", color="C2", linewidth=2.5,
+        ax.plot(all_rounds_ber, agg_mean, "-", color="C2", linewidth=2.5,
                 label="Mean")
-        ax.fill_between(common_rounds_ber, ber_mean - ber_std, ber_mean + ber_std,
-                        color="C2", alpha=0.15)
+        ax.fill_between(all_rounds_ber, agg_mean - agg_std, agg_mean + agg_std,
+                        color="C2", alpha=0.2)
 
         ax.set_xlabel("FL Round", fontsize=12)
         ax.set_ylabel("Watermark BER", fontsize=12)
@@ -219,18 +226,21 @@ def main():
     if pretrain_data:
         fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-        epochs_p = pretrain_data[0][0]
         for epochs, tl, wl, wb in pretrain_data:
             axes[0].plot(epochs, tl, "o-", alpha=0.5, markersize=3)
             axes[1].plot(epochs, wl, "o-", alpha=0.5, markersize=3)
             axes[2].plot(epochs, wb, "o-", alpha=0.5, markersize=3)
 
-        task_means = np.mean([d[1] for d in pretrain_data], axis=0)
-        wm_means = np.mean([d[2] for d in pretrain_data], axis=0)
-        ber_means = np.mean([d[3] for d in pretrain_data], axis=0)
-        axes[0].plot(epochs_p, task_means, "o-", color="C0", linewidth=2, label="Mean")
-        axes[1].plot(epochs_p, wm_means, "o-", color="C1", linewidth=2, label="Mean")
-        axes[2].plot(epochs_p, ber_means, "o-", color="C2", linewidth=2, label="Mean")
+        common_epochs = pretrain_data[0][0]
+        ep_map = {0: 1, 1: 2, 2: 3}
+        for idx, (key, col) in enumerate([(1, "C0"), (2, "C1"), (3, "C2")]):
+            mat = []
+            for epochs, *vals in pretrain_data:
+                rmap = dict(zip(epochs, vals[idx]))
+                mat.append([rmap.get(e, np.nan) for e in common_epochs])
+            mat = np.array(mat)
+            mean = np.nanmean(mat, axis=0)
+            axes[idx].plot(common_epochs, mean, "o-", color=col, linewidth=2, label="Mean")
 
         axes[0].set_title("Task Loss")
         axes[1].set_title("Watermark Loss")
