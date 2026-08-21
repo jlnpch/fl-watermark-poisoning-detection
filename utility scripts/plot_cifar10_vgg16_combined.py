@@ -125,27 +125,29 @@ def main():
 
     # === Plot 1: Accuracy comparison ===
     fig, ax = plt.subplots(figsize=(10, 6))
-    for i, (rnds, accs, _) in enumerate(nowm_server):
-        ax.plot(rnds, accs, "--", alpha=0.4, linewidth=1, color="C0",
-                label=f"No-WM rep {i+1}" if i < 3 else None)
-    for i, (rnds, accs, _) in enumerate(wm_server):
-        ax.plot(rnds, accs, "--", alpha=0.4, linewidth=1, color="C1",
-                label=f"WM rep {i+1}" if i < 3 else None)
-
-    # Means
     common_nowm = list(range(1, max(r[0][-1] for r in nowm_server) + 1))
     common_wm = list(range(1, max(r[0][-1] for r in wm_server) + 1))
     nowm_acc_mat = interpolate_to_common(common_nowm, [(d[0], d[1]) for d in nowm_server])
     wm_acc_mat = interpolate_to_common(common_wm, [(d[0], d[1]) for d in wm_server])
-    ax.plot(common_nowm, np.nanmean(nowm_acc_mat, axis=0), "-", color="C0", linewidth=2.5, label="No-WM mean")
-    ax.plot(common_wm, np.nanmean(wm_acc_mat, axis=0), "-", color="C1", linewidth=2.5, label="WM mean")
+
+    nowm_acc_mean = np.nanmean(nowm_acc_mat, axis=0)
+    nowm_acc_std = np.nanstd(nowm_acc_mat, axis=0)
+    wm_acc_mean = np.nanmean(wm_acc_mat, axis=0)
+    wm_acc_std = np.nanstd(wm_acc_mat, axis=0)
+
+    ax.plot(common_nowm, nowm_acc_mean, "-", color="C0", linewidth=2.5, label="No-WM mean")
+    ax.fill_between(common_nowm, nowm_acc_mean - nowm_acc_std, nowm_acc_mean + nowm_acc_std,
+                    color="C0", alpha=0.2)
+    ax.plot(common_wm, wm_acc_mean, "-", color="C1", linewidth=2.5, label="WM mean")
+    ax.fill_between(common_wm, wm_acc_mean - wm_acc_std, wm_acc_mean + wm_acc_std,
+                    color="C1", alpha=0.2)
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Server Accuracy (%)", fontsize=12)
     ax.set_title("VGG-16-BN on CIFAR-10 — Accuracy\n(3 reps each, no-WM vs WM, no attack)", fontsize=13)
     ax.grid(True, alpha=0.3)
     ax.set_ylim(0, 100)
-    ax.legend(fontsize=9, ncol=2)
+    ax.legend(fontsize=10)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "accuracy_comparison.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -153,23 +155,26 @@ def main():
 
     # === Plot 2: Loss comparison ===
     fig, ax = plt.subplots(figsize=(10, 6))
-    for i, (rnds, _, losses) in enumerate(nowm_server):
-        ax.plot(rnds, losses, "--", alpha=0.4, linewidth=1, color="C0",
-                label=f"No-WM rep {i+1}" if i < 3 else None)
-    for i, (rnds, _, losses) in enumerate(wm_server):
-        ax.plot(rnds, losses, "--", alpha=0.4, linewidth=1, color="C1",
-                label=f"WM rep {i+1}" if i < 3 else None)
-
     nowm_loss_mat = interpolate_to_common(common_nowm, [(d[0], d[2]) for d in nowm_server])
     wm_loss_mat = interpolate_to_common(common_wm, [(d[0], d[2]) for d in wm_server])
-    ax.plot(common_nowm, np.nanmean(nowm_loss_mat, axis=0), "-", color="C0", linewidth=2.5, label="No-WM mean")
-    ax.plot(common_wm, np.nanmean(wm_loss_mat, axis=0), "-", color="C1", linewidth=2.5, label="WM mean")
+
+    nowm_loss_mean = np.nanmean(nowm_loss_mat, axis=0)
+    nowm_loss_std = np.nanstd(nowm_loss_mat, axis=0)
+    wm_loss_mean = np.nanmean(wm_loss_mat, axis=0)
+    wm_loss_std = np.nanstd(wm_loss_mat, axis=0)
+
+    ax.plot(common_nowm, nowm_loss_mean, "-", color="C0", linewidth=2.5, label="No-WM mean")
+    ax.fill_between(common_nowm, nowm_loss_mean - nowm_loss_std, nowm_loss_mean + nowm_loss_std,
+                    color="C0", alpha=0.2)
+    ax.plot(common_wm, wm_loss_mean, "-", color="C1", linewidth=2.5, label="WM mean")
+    ax.fill_between(common_wm, wm_loss_mean - wm_loss_std, wm_loss_mean + wm_loss_std,
+                    color="C1", alpha=0.2)
 
     ax.set_xlabel("FL Round", fontsize=12)
     ax.set_ylabel("Server Loss", fontsize=12)
     ax.set_title("VGG-16-BN on CIFAR-10 — Loss\n(3 reps each, no-WM vs WM, no attack)", fontsize=13)
     ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=9, ncol=2)
+    ax.legend(fontsize=10)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "loss_comparison.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -188,23 +193,20 @@ def main():
         mean_mat = np.array(mean_mat)
         std_mat = np.array(std_mat)
 
-        for i, (rnds, bers, _) in enumerate(wm_ber):
-            ax.plot(rnds, bers, "--", alpha=0.4, linewidth=1,
-                    label=f"Rep {i+1}")
-
         agg_mean = np.nanmean(mean_mat, axis=0)
         agg_std = np.nanmean(std_mat, axis=0)
-        ax.plot(all_rounds, agg_mean, "-", color="C2", linewidth=2.5, label="Mean")
+        rep_std = np.nanstd(mean_mat, axis=0)
+
+        ax.plot(all_rounds, agg_mean, "-", color="C2", linewidth=2.5, label="Mean BER")
         ax.fill_between(all_rounds, agg_mean - agg_std, agg_mean + agg_std,
-                        color="C2", alpha=0.2)
+                        color="C2", alpha=0.2, label="Mean ± client std")
 
         ax.set_xlabel("FL Round", fontsize=12)
         ax.set_ylabel("Watermark BER", fontsize=12)
         ax.set_title("VGG-16-BN on CIFAR-10 — BER (classifier.6.weight)\n(3 WM reps, 128-bit, λ=0.01)", fontsize=13)
         ax.grid(True, alpha=0.3)
         ax.set_ylim(0, 0.55)
-        if ax.get_legend_handles_labels()[0]:
-            ax.legend(fontsize=10)
+        ax.legend(fontsize=10)
         fig.tight_layout()
         fig.savefig(OUT_DIR / "ber_comparison.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
@@ -225,13 +227,27 @@ def main():
                     ep_map_ber.setdefault(e, []).append(wb[i])
 
             tl_mean = [np.mean(ep_map_task[e]) for e in common_ep]
+            tl_std = [np.std(ep_map_task[e]) for e in common_ep]
             wb_mean = [np.mean(ep_map_ber[e]) for e in common_ep]
+            wb_std = [np.std(ep_map_ber[e]) for e in common_ep]
             axes[0].plot(common_ep, tl_mean, "o-", color=color, linewidth=2, markersize=3, label=prefix)
+            axes[0].fill_between(common_ep, np.array(tl_mean) - np.array(tl_std),
+                                np.array(tl_mean) + np.array(tl_std), color=color, alpha=0.15)
             axes[2].plot(common_ep, wb_mean, "o-", color=color, linewidth=2, markersize=3, label=prefix)
+            axes[2].fill_between(common_ep, np.array(wb_mean) - np.array(wb_std),
+                                np.array(wb_mean) + np.array(wb_std), color=color, alpha=0.15)
 
         if wm_pretrain:
+            wm_wl_map = {}
             for epochs, tl, wl, wb in wm_pretrain:
-                axes[1].plot(epochs, wl, "o--", color="C1", alpha=0.4, linewidth=1, markersize=3)
+                for i, e in enumerate(epochs):
+                    wm_wl_map.setdefault(e, []).append(wl[i])
+            wm_ep = sorted(wm_wl_map.keys())
+            wl_mean = [np.mean(wm_wl_map[e]) for e in wm_ep]
+            wl_std = [np.std(wm_wl_map[e]) for e in wm_ep]
+            axes[1].plot(wm_ep, wl_mean, "o-", color="C1", linewidth=2, markersize=3, label="WM mean")
+            axes[1].fill_between(wm_ep, np.array(wl_mean) - np.array(wl_std),
+                                np.array(wl_mean) + np.array(wl_std), color="C1", alpha=0.15)
 
         axes[0].set_yscale("log")
         axes[0].set_title("Task Loss")
