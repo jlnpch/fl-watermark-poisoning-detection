@@ -1,4 +1,5 @@
 import io
+import math
 import time
 from logging import INFO
 
@@ -21,6 +22,10 @@ class WatermarkedFedAvg(FedAvg):
         defense_method="mad",
         mad_alpha=3.0,
         metrics_saver=None,
+        lr_scheduler="none",
+        lr_min=0.0,
+        lr_max=0.01,
+        lr_total_rounds=100,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -31,6 +36,10 @@ class WatermarkedFedAvg(FedAvg):
         self.defense_method = defense_method
         self.mad_alpha = mad_alpha
         self.metrics = metrics_saver or MetricsSaver()
+        self.lr_scheduler = lr_scheduler
+        self.lr_min = lr_min
+        self.lr_max = lr_max
+        self.lr_total_rounds = lr_total_rounds
 
     def _mad_threshold(self, bes):
         """Dynamic per-round threshold: median + alpha * MAD (Median Absolute Deviation).
@@ -165,6 +174,15 @@ class WatermarkedFedAvg(FedAvg):
         for current_round in range(1, num_rounds + 1):
             log(INFO, "")
             log(INFO, "[ROUND %s/%s]", current_round, num_rounds)
+
+            # Per-round LR schedule
+            if self.lr_scheduler == "cosine":
+                current_lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (
+                    1 + math.cos(math.pi * current_round / self.lr_total_rounds)
+                )
+                train_config["lr"] = current_lr
+                if current_round == 1 or current_round % 10 == 0 or current_round == num_rounds:
+                    log(INFO, "  LR: %.6f (round %d/%d)", current_lr, current_round, self.lr_total_rounds)
 
             train_replies = grid.send_and_receive(
                 messages=self.configure_train(current_round, arrays, train_config, grid),

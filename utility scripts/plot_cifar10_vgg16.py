@@ -46,7 +46,7 @@ def find_vgg16_cifar10_runs(runs, watermark_lambda=0):
     return matched
 
 
-def load_server_csv(run_id):
+def load_server_csv(run_id, min_rounds=10):
     path = RESULTS_DIR / f"run_{run_id}_server.csv"
     if not path.exists():
         return None
@@ -56,6 +56,8 @@ def load_server_csv(run_id):
             rounds.append(int(row["round"]))
             accs.append(float(row["server_acc"]) * 100)
             losses.append(float(row["server_loss"]))
+    if len(rounds) < min_rounds:
+        return None
     return rounds, accs, losses
 
 

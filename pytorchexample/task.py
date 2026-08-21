@@ -243,7 +243,7 @@ def compute_asr(net, testloader, source_class, target_class, device):
     return success / total if total > 0 else 0.0
 
 
-def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0):
+def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0, lr_scheduler="none", lr_min=0.0):
     """Pretrain the model with task loss + watermark regularization.
 
     Returns a list of per-epoch dicts:
@@ -254,6 +254,9 @@ def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lam
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+    scheduler = None
+    if lr_scheduler == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr_min)
     scaler = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
     net.train()
 
@@ -285,12 +288,16 @@ def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lam
             total_wm += wm_loss.item()
             n_batches += 1
 
+        if scheduler is not None:
+            scheduler.step()
+
         per_epoch.append({
             "epoch": epoch + 1,
             "task_loss": total_task / n_batches,
             "watermark_loss": total_wm / n_batches,
             "total_loss": (total_task + lambda_reg * total_wm) / n_batches,
             "watermark_ber": watermark.compute_ber(net),
+            "lr": optimizer.param_groups[0]["lr"],
         })
 
     return per_epoch

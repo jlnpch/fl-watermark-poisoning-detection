@@ -56,15 +56,19 @@ def main(grid: Grid, context: Context) -> None:
     pretrain_loader = load_server_pretrain_data(num_samples=server_private_samples, batch_size=64)
 
     wd = cfg["weight-decay"]
-    log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs)...", wm_lambda, pt_epochs)
+    lr_scheduler = cfg.get("lr-scheduler", "none")
+    lr_min = cfg.get("lr-min", 0.0)
+    log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs, lr_sched=%s)...", wm_lambda, pt_epochs, lr_scheduler)
     pretrain_metrics = server_pretrain(
         global_model, pretrain_loader, watermark, pt_epochs, lr, device,
         lambda_reg=wm_lambda, weight_decay=wd,
+        lr_scheduler=lr_scheduler, lr_min=lr_min,
     )
 
     for m in pretrain_metrics:
         metrics_saver.add_pretrain(
             m["epoch"], m["task_loss"], m["watermark_loss"], m["total_loss"], m["watermark_ber"],
+            lr=m.get("lr"),
         )
     final_ber = pretrain_metrics[-1]["watermark_ber"] if pretrain_metrics else watermark.compute_ber(global_model)
     log(INFO, "Pretrain done — BER = %.4f, Loss = %.4f", final_ber, pretrain_metrics[-1]["total_loss"])
@@ -89,6 +93,10 @@ def main(grid: Grid, context: Context) -> None:
         defense_method=cfg.get("defense-method", "mad"),
         mad_alpha=cfg.get("mad-alpha", 3.0),
         metrics_saver=metrics_saver,
+        lr_scheduler=lr_scheduler,
+        lr_min=lr_min,
+        lr_max=lr,
+        lr_total_rounds=num_rounds,
     )
 
     # Define global evaluation function (captures context via closure)

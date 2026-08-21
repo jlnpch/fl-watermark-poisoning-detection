@@ -57,13 +57,14 @@ class MetricsSaver:
             "eval_loss": eval_loss,
         })
 
-    def add_pretrain(self, epoch, task_loss, watermark_loss, total_loss, watermark_ber):
+    def add_pretrain(self, epoch, task_loss, watermark_loss, total_loss, watermark_ber, lr=None):
         self.pretrain_rows.append({
             "epoch": epoch,
             "task_loss": task_loss,
             "watermark_loss": watermark_loss,
             "total_loss": total_loss,
             "watermark_ber": watermark_ber,
+            "lr": lr,
         })
 
     def _ensure_dir(self):
