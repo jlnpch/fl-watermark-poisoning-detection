@@ -58,6 +58,9 @@ def main(grid: Grid, context: Context) -> None:
     wd = cfg["weight-decay"]
     lr_scheduler = cfg.get("lr-scheduler", "none")
     lr_min = cfg.get("lr-min", 0.0)
+    lr_milestones = cfg.get("lr-milestones", "")
+    lr_milestone_list = [int(x.strip()) for x in lr_milestones.split(",") if x.strip()] if lr_milestones else []
+    lr_factor = cfg.get("lr-factor", 0.1)
     log(INFO, "Pretraining with watermark regularization (λ=%.4f, %d epochs, lr_sched=%s)...", wm_lambda, pt_epochs, lr_scheduler)
     pretrain_metrics = server_pretrain(
         global_model, pretrain_loader, watermark, pt_epochs, lr, device,
@@ -97,6 +100,8 @@ def main(grid: Grid, context: Context) -> None:
         lr_min=lr_min,
         lr_max=lr,
         lr_total_rounds=num_rounds,
+        lr_milestones=lr_milestone_list,
+        lr_factor=lr_factor,
     )
 
     # Define global evaluation function (captures context via closure)

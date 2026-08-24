@@ -26,6 +26,8 @@ class WatermarkedFedAvg(FedAvg):
         lr_min=0.0,
         lr_max=0.01,
         lr_total_rounds=100,
+        lr_milestones=None,
+        lr_factor=0.1,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -40,6 +42,8 @@ class WatermarkedFedAvg(FedAvg):
         self.lr_min = lr_min
         self.lr_max = lr_max
         self.lr_total_rounds = lr_total_rounds
+        self.lr_milestones = lr_milestones or []
+        self.lr_factor = lr_factor
 
     def _mad_threshold(self, bes):
         """Dynamic per-round threshold: median + alpha * MAD (Median Absolute Deviation).
@@ -183,6 +187,15 @@ class WatermarkedFedAvg(FedAvg):
                 train_config["lr"] = current_lr
                 if current_round == 1 or current_round % 10 == 0 or current_round == num_rounds:
                     log(INFO, "  LR: %.6f (round %d/%d)", current_lr, current_round, self.lr_total_rounds)
+            elif self.lr_scheduler == "step" and self.lr_milestones:
+                current_lr = self.lr_max
+                for milestone in sorted(self.lr_milestones):
+                    if current_round > milestone:
+                        current_lr *= self.lr_factor
+                train_config["lr"] = current_lr
+                if current_round == 1 or current_round in self.lr_milestones or current_round == num_rounds:
+                    log(INFO, "  LR: %.6f (round %d/%d, milestones=%s)",
+                        current_lr, current_round, self.lr_total_rounds, self.lr_milestones)
 
             train_replies = grid.send_and_receive(
                 messages=self.configure_train(current_round, arrays, train_config, grid),

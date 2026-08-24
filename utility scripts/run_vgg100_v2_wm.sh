@@ -1,5 +1,6 @@
 #!/bin/bash
-# CIFAR-100 VGG-16-BN v2: watermark on features.7.weight, cosine LR, 200 rounds.
+# CIFAR-100 VGG-16-BN v2: watermark on features.7.weight, step LR decay, batch-size=16, 200 rounds.
+# LR: 0.01 (r1-100), 0.001 (r101-150), 0.0001 (r151-200). No early stopping.
 export PATH="/home/julian/.local/bin:$PATH"
 cd /home2/julian/test/fl-watermark-poisoning-detection
 
@@ -18,10 +19,10 @@ flwr federation simulation-config @none/default local \
     --init-args-num-gpus 1 2>&1 || true
 
 flwr run /home2/julian/test/fl-watermark-poisoning-detection --stream \
-    --run-config 'model-name="vgg16" num-classes=100 dataset-name="uoft-cs/cifar100" num-server-rounds=200 server-private-samples=5000 pretrain-epochs=50 watermark-lambda=0.01 watermark-num-bits=128 watermark-layer="features.7.weight" attacker-type="none" defense-method="none" lr-scheduler="cosine" lr-min=0.0001' || true
+    --run-config 'model-name="vgg16" num-classes=100 dataset-name="uoft-cs/cifar100" num-server-rounds=200 server-private-samples=5000 pretrain-epochs=50 watermark-lambda=0.01 watermark-num-bits=128 watermark-layer="features.7.weight" attacker-type="none" defense-method="none" batch-size=16 lr-scheduler="step" lr-milestones="100,150" lr-factor=0.1 early-stopping-patience=0' || true
 
 kill $SUPERLINK_PID 2>/dev/null || true
 wait $SUPERLINK_PID 2>/dev/null || true
 
 echo ""
-echo "  Done: CIFAR-100 v2 watermark (features.7.weight)"
+echo "  Done: CIFAR-100 v2 watermark features.7.weight (step LR, bs=16)"
