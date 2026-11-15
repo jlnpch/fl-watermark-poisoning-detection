@@ -4,15 +4,30 @@ import time
 from logging import INFO
 
 import numpy as np
+from flwr.app import Array, ArrayRecord, MetricRecord
 from flwr.common.logger import log
 from flwr.serverapp.strategy import FedAvg
 from flwr.serverapp.strategy.result import Result
 from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
 
+from pytorchexample.defenses import run_defense
 from pytorchexample.metrics import MetricsSaver
 
 
 class WatermarkedFedAvg(FedAvg):
+    """FedAvg with pluggable defenses (watermark MAD/fixed + Byzantine-robust baselines).
+
+    ``defense_method`` routes the per-round aggregation to :mod:`pytorchexample.defenses`:
+
+    - ``"none"``         : plain FedAvg (no defense)
+    - ``"mad"``          : watermark BER ``median + alpha * MAD`` threshold (default)
+    - ``"fixed"``        : watermark BER fixed threshold (``max_trusted_ber``)
+    - ``"fltrust"``      : FLTrust (server-root cosine-trust aggregation)
+    - ``"krum"``         : Multi-Krum
+    - ``"trimmed-mean"`` : coordinate-wise trimmed mean
+    - ``"median"``       : coordinate-wise median
+    """
+
     def __init__(
         self,
         early_stopping_patience=0,
@@ -21,6 +36,9 @@ class WatermarkedFedAvg(FedAvg):
         attacker_fraction=0.0,
         defense_method="mad",
         mad_alpha=3.0,
+        krum_m=None,
+        trim_ratio=None,
+        server_update_fn=None,
         metrics_saver=None,
         lr_scheduler="none",
         lr_min=0.0,
@@ -37,6 +55,9 @@ class WatermarkedFedAvg(FedAvg):
         self.attacker_fraction = attacker_fraction
         self.defense_method = defense_method
         self.mad_alpha = mad_alpha
+        self.krum_m = krum_m
+        self.trim_ratio = trim_ratio
+        self.server_update_fn = server_update_fn
         self.metrics = metrics_saver or MetricsSaver()
         self.lr_scheduler = lr_scheduler
         self.lr_min = lr_min
@@ -45,85 +66,150 @@ class WatermarkedFedAvg(FedAvg):
         self.lr_milestones = lr_milestones or []
         self.lr_factor = lr_factor
 
-    def _mad_threshold(self, bes):
-        """Dynamic per-round threshold: median + alpha * MAD (Median Absolute Deviation).
+        # Current global model (set in `start` before each aggregation).
+        self._current_global_state = None  # torch state dict
+        self._current_global_np = None  # dict[str, np.ndarray]
+        self._server_update_np = None  # dict[str, np.ndarray] for FLTrust
 
-        ``bes``: list of watermark BER values for the round. Returns the threshold;
-        falls back to +inf (exclude nobody) if fewer than 2 BERs are available.
-        """
-        if len(bes) < 2:
-            return float("inf")
-        bes = np.asarray(bes, dtype=float)
-        med = float(np.median(bes))
-        mad = float(np.median(np.abs(bes - med)))
-        return med + self.mad_alpha * mad
-
-    def _per_round_threshold(self, bes):
-        if self.defense_method == "fixed":
-            return self.max_trusted_ber
-        return self._mad_threshold(bes)
+    def _defense_config(self, n_valid):
+        """Assemble the per-round kwargs for :func:`run_defense`."""
+        f = int(n_valid * self.attacker_fraction)
+        if self.trim_ratio is None:
+            trim_count = f
+        else:
+            trim_count = int(self.trim_ratio * n_valid)
+        return {
+            "mad_alpha": self.mad_alpha,
+            "max_ber": self.max_trusted_ber,
+            "n_attackers": f,
+            "m": self.krum_m,
+            "trim_count": trim_count,
+            "server_update": self._server_update_np,
+        }
 
     def aggregate_train(self, server_round, replies):
-        tp = fp = excluded = 0
-        trusted = []
+        valid = [msg for msg in replies if not msg.has_error()]
         n = len(replies)
-
-        # Collect BER values first (dynamic threshold needs the full round)
-        bers = []
-        for msg in replies:
-            if msg.has_error():
-                continue
-            ber = msg.content["metrics"].get("watermark_ber", None)
-            if ber is not None:
-                bers.append(ber)
-        threshold = self._per_round_threshold(bers)
+        n_valid = len(valid)
 
         for msg in replies:
             if msg.has_error():
-                trusted.append(msg)
-                continue
+                log(INFO, "  > Received error reply from node %s", msg.metadata.src_node_id)
+
+        if n_valid == 0:
+            log(INFO, "aggregate_train: no valid replies; skipping aggregation")
+            return None, None
+
+        global_np = self._current_global_np
+        if global_np is None:
+            # Should not happen (start() sets it every round); use first reply.
+            global_np = {k: v.numpy() for k, v in valid[0].content["arrays"].items()}
+
+        models = []
+        num_examples = []
+        ber_values = []
+        pids = []
+        train_losses = []
+        for msg in valid:
+            arr_rec = msg.content["arrays"]
+            models.append({k: v.numpy() for k, v in arr_rec.items()})
             metrics = msg.content["metrics"]
+            num_examples.append(float(metrics.get(self.weighted_by_key, 1)))
             ber = metrics.get("watermark_ber", None)
-            pid = metrics.get("partition_id", -1)
-            train_loss = metrics.get("train_loss", None)
-            is_attacker = self.attacker_fraction > 0 and pid < int(n * self.attacker_fraction)
-            is_excluded = ber is not None and ber > threshold
+            ber_values.append(float(ber) if ber is not None else float("nan"))
+            pids.append(int(metrics.get("partition_id", -1)))
+            train_losses.append(metrics.get("train_loss", None))
 
+        attacker_flags = [
+            self.attacker_fraction > 0 and pid < int(n * self.attacker_fraction)
+            for pid in pids
+        ]
+
+        outcome = run_defense(
+            self.defense_method,
+            global_np,
+            models,
+            num_examples,
+            ber_values=ber_values,
+            **self._defense_config(n_valid),
+        )
+
+        # Log + save per-client metrics.
+        excluded_count = 0
+        tp = fp = 0
+        for i, msg in enumerate(valid):
+            ber = ber_values[i]
+            is_excluded = outcome.excluded[i]
+            is_attacker = attacker_flags[i]
             tag = " (attacker)" if is_attacker else ""
-            if ber is not None:
-                log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s", pid, ber, tag)
-
+            if not np.isnan(ber):
+                log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s", pids[i], ber, tag)
             if is_excluded:
-                log(INFO, "  └─ Partition %d: EXCLUDED (BER %.4f > threshold %.4f)", pid, ber, threshold)
-                excluded += 1
+                excluded_count += 1
                 if is_attacker:
                     tp += 1
                 else:
                     fp += 1
-            else:
-                trusted.append(msg)
-
-            # Save per-client train metrics
+                method = outcome.extra.get("method")
+                if method in ("mad", "fixed"):
+                    log(INFO, "  └─ Partition %d: EXCLUDED (BER %.4f > threshold %.4f)",
+                        pids[i], ber, outcome.extra.get("threshold", float("inf")))
+                else:
+                    log(INFO, "  └─ Partition %d: EXCLUDED by %s", pids[i], method)
             self.metrics.add_train(
                 round_num=server_round,
-                partition_id=pid,
-                train_loss=train_loss,
-                watermark_ber=ber,
+                partition_id=pids[i],
+                train_loss=train_losses[i],
+                watermark_ber=None if np.isnan(ber) else ber,
                 is_attacker=is_attacker,
                 excluded=is_excluded,
             )
 
-        if bers:
-            bers_arr = np.asarray(bers, dtype=float)
-            med = float(np.median(bers_arr))
-            mad = float(np.median(np.abs(bers_arr - med)))
-            log(INFO, "  └─ Threshold: %.4f (median %.4f, MAD %.4f, alpha %.1f, method=%s)",
-                threshold, med, mad, self.mad_alpha, self.defense_method)
-        if excluded:
-            log(INFO, "  └─ Excluded %d/%d clients (TP=%d, FP=%d, BER>%.4f)",
-                excluded, n, tp, fp, threshold)
+        extra = outcome.extra
+        if extra.get("method") in ("mad", "fixed"):
+            med = extra.get("median")
+            mad = extra.get("mad")
+            log(INFO, "  └─ Threshold: %.4f (median %s, MAD %s, alpha %.1f, method=%s)",
+                extra.get("threshold"),
+                "%.4f" % med if med is not None else "n/a",
+                "%.4f" % mad if mad is not None else "n/a",
+                self.mad_alpha, self.defense_method)
+        elif extra.get("method") == "krum":
+            log(INFO, "  └─ Krum: %d/%d selected (f=%d)",
+                extra.get("m"), n_valid, extra.get("n_attackers"))
+        elif extra.get("method") == "fltrust":
+            log(INFO, "  └─ FLTrust: trust-sum=%.4f (server update norm %.4f)",
+                extra.get("ts_sum"), extra.get("server_norm"))
+        elif extra.get("method") == "trimmed-mean":
+            log(INFO, "  └─ Trimmed Mean: %d dropped per side of %d", extra.get("trim_count"), n_valid)
+        if excluded_count:
+            log(INFO, "  └─ Excluded %d/%d clients (TP=%d, FP=%d)",
+                excluded_count, n_valid, tp, fp)
 
-        return super().aggregate_train(server_round, trusted)
+        # Build aggregated ArrayRecord and MetricRecord.
+        arrays = ArrayRecord(
+            {k: Array(np.asarray(v)) for k, v in outcome.aggregated.items()}
+        )
+        metrics = self._aggregate_metrics(valid, outcome.weights)
+        return arrays, metrics
+
+    def _aggregate_metrics(self, valid_replies, weights):
+        """Weighted average of client MetricRecords (mirrors aggregate_metricrecords)."""
+        metrics = MetricRecord()
+        for i, msg in enumerate(valid_replies):
+            w = weights[i]
+            if w == 0:
+                continue
+            for key, value in msg.content["metrics"].items():
+                if key == self.weighted_by_key:
+                    continue
+                if isinstance(value, list):
+                    continue
+                if key not in metrics:
+                    metrics[key] = value * w
+                else:
+                    metrics[key] = metrics[key] + value * w
+        return metrics
 
     def aggregate_evaluate(self, server_round, replies):
         for msg in replies:
@@ -196,6 +282,19 @@ class WatermarkedFedAvg(FedAvg):
                 if current_round == 1 or current_round in self.lr_milestones or current_round == num_rounds:
                     log(INFO, "  LR: %.6f (round %d/%d, milestones=%s)",
                         current_lr, current_round, self.lr_total_rounds, self.lr_milestones)
+
+            # Snapshot the current global model for update-based defenses.
+            if arrays is not None:
+                self._current_global_state = arrays.to_torch_state_dict()
+                self._current_global_np = {
+                    k: v.detach().cpu().numpy()
+                    for k, v in self._current_global_state.items()
+                }
+                if self.defense_method == "fltrust" and self.server_update_fn is not None:
+                    delta = self.server_update_fn(self._current_global_state)
+                    self._server_update_np = {
+                        k: v.detach().cpu().numpy() for k, v in delta.items()
+                    }
 
             train_replies = grid.send_and_receive(
                 messages=self.configure_train(current_round, arrays, train_config, grid),

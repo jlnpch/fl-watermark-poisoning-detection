@@ -85,4 +85,5 @@ def create_watermark(config):
         message=config.get("watermark-message", "uchida"),
         num_bits=config.get("watermark-num-bits", 64),
         layer_name=config.get("watermark-layer", "backbone.fc.weight"),
+        seed=config.get("seed", 42),
     )

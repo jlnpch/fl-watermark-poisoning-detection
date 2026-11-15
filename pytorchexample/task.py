@@ -101,14 +101,14 @@ def _build_dirichlet_partitions(dataset, num_partitions, alpha, num_classes=10, 
 def load_data(partition_id: int, num_partitions: int, batch_size: int,
               server_private_samples: int = 5000, client_samples: int = 4000,
               partition_type: str = "iid", partition_alpha: float = 0.5,
-              num_classes: int = 10):
+              num_classes: int = 10, seed: int = 42):
     """Load partition data. Server takes first server_private_samples exclusively."""
     from datasets import load_dataset
     import numpy as np
     global fds, _partition_indices
     if fds is None:
         full = load_dataset(DATASET_NAME, split="train")
-        full = full.shuffle(seed=42)
+        full = full.shuffle(seed=seed)
         full = _normalize_columns(full)
         # Skip server's private portion, take the rest for clients
         dataset = full.select(range(server_private_samples, len(full)))
@@ -119,14 +119,14 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
         fds = dataset
         if partition_type == "dirichlet":
             _partition_indices = _build_dirichlet_partitions(
-                fds, num_partitions, partition_alpha, num_classes=num_classes, seed=42
+                fds, num_partitions, partition_alpha, num_classes=num_classes, seed=seed
             )
 
     if partition_type == "dirichlet":
         idxs = _partition_indices[partition_id]
         partition_subset = Subset(fds, idxs)
         # manual train/test split on indices
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(seed)
         perm = rng.permutation(len(idxs))
         split = int(0.8 * len(idxs))
         train_idxs = [idxs[i] for i in perm[:split]]
@@ -148,7 +148,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
         return trainloader, testloader
     else:
         partition = fds.shard(num_partitions, partition_id, contiguous=True)
-        partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
+        partition_train_test = partition.train_test_split(test_size=0.2, seed=seed)
         partition_train_test = partition_train_test.with_transform(apply_transforms)
         trainloader = DataLoader(
             partition_train_test["train"], batch_size=batch_size, shuffle=True,
@@ -159,11 +159,11 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int,
         return trainloader, testloader
 
 
-def load_server_pretrain_data(num_samples=5000, batch_size=64):
+def load_server_pretrain_data(num_samples=5000, batch_size=64, seed=42):
     """Load the first num_samples of training set for server-side pretraining."""
     from datasets import load_dataset
     dataset = load_dataset(DATASET_NAME, split="train")
-    dataset = dataset.shuffle(seed=42)
+    dataset = dataset.shuffle(seed=seed)
     dataset = _normalize_columns(dataset)
     dataset = dataset.select(range(num_samples))
     dataset = dataset.with_format("torch").with_transform(apply_transforms)
@@ -301,3 +301,17 @@ def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lam
         })
 
     return per_epoch
+
+
+def compute_server_update(net, trainloader, epochs, lr, device, weight_decay=0.0):
+    """Compute the server's own update on its clean root data (used by FLTrust).
+
+    Trains ``net`` (starting from the current global weights) for ``epochs``
+    epochs and returns the update ``delta = trained_state - initial_state`` as a
+    ``dict[str, torch.Tensor]``.  ``net`` is modified in place (left at the
+    trained state).
+    """
+    initial = {k: v.detach().clone() for k, v in net.state_dict().items()}
+    train(net, trainloader, epochs, lr, device, weight_decay=weight_decay)
+    trained = net.state_dict()
+    return {k: trained[k] - initial[k] for k in initial}

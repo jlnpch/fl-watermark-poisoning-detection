@@ -30,35 +30,40 @@ clientapp = "pytorchexample.client_app:app"
 
 [tool.flwr.app.config]
 # Training
-num-server-rounds = 100
+num-server-rounds = 50
 fraction-evaluate = 1.0
 local-epochs = 1
 learning-rate = 0.01
 weight-decay = 0.0005
-lr-scheduler = "none"
+lr-scheduler = "cosine"   # cosine LR during pretraining (locked baseline)
 lr-min = 0.0001
 lr-milestones = ""
 lr-factor = 0.1
-batch-size = 32
+batch-size = 64
 save-model = false
 results-dir = "/home2/julian/test/fl-watermark-poisoning-detection/results"
 
+# Reproducibility: one global seed controls dataset shuffling, Dirichlet
+# partitioning, and the watermark projection key. Sweep seeds {0,1,2} for the
+# 3-repetition baseline.
+seed = 42
+
 # Model & dataset
-model-name = "vgg16"              # "resnet18" | "vgg16"
+model-name = "resnet18"             # "resnet18" | "vgg16"
 num-classes = 10
-dataset-name = "uoft-cs/cifar10"  # HuggingFace dataset identifier
+dataset-name = "uoft-cs/cifar10"    # HuggingFace dataset identifier
 
 # Watermark
 watermark-type = "uchida"
 watermark-message = "uchida"
 # 128-bit default: redundant bits flatten run-to-run variance of extracted BER
 watermark-num-bits = 128
-watermark-layer = "classifier.6.weight"
+watermark-layer = "backbone.fc.weight"  # ResNet-18 FC layer (VGG-16: "classifier.6.weight")
 watermark-lambda = 0.01
 
 # Server pretraining — absolute sample count from CIFAR-10 training set (50k total)
 server-private-samples = 5000
-pretrain-epochs = 10
+pretrain-epochs = 50
 # Skip federated rounds after pretraining (writes only the pretrain CSV)
 pretrain-only = false
 
@@ -68,8 +73,8 @@ partition-alpha = 0.5
 # Max samples per client (from the pool remaining after server's private slice)
 client-samples = 4000
 
-# Early stopping
-early-stopping-patience = 15
+# Early stopping (0 = disabled)
+early-stopping-patience = 0
 early-stopping-delta = 0.001
 
 # Attacker
@@ -77,10 +82,29 @@ attacker-type = "none"
 attacker-fraction = 0.0
 max-trusted-ber = 1.0
 
-# Defense thresholding: "mad" (dynamic per-round Median + alpha*MAD) or "fixed"
+# Defense routing. Available methods:
+#   "none"         -> plain FedAvg (no defense)
+#   "mad"          -> watermark BER dynamic threshold median + alpha*MAD (default)
+#   "fixed"        -> watermark BER fixed threshold (max-trusted-ber)
+#   "fltrust"      -> FLTrust (server-root cosine-trust aggregation)
+#   "krum"         -> Multi-Krum
+#   "trimmed-mean" -> coordinate-wise trimmed mean
+#   "median"       -> coordinate-wise median
 defense-method = "mad"
 # Multiplier for the MAD-based dynamic threshold (Threshold = Median + alpha*MAD)
-mad-alpha = 3.0
+mad-alpha = 4.0
+
+# Distance/statistical defense params:
+#   krum-m   : number of clients Multi-Krum averages (<=0 -> auto n - f - 2)
+#   trim-ratio : fraction of clients trimmed per side (<0 -> auto from attacker-fraction)
+krum-m = -1
+trim-ratio = -1.0
+
+# FLTrust params (used when defense-method = "fltrust"):
+#   fltrust-server-samples : size of the server's clean root dataset (per round)
+#   fltrust-server-epochs  : epochs the server trains on its root set each round
+fltrust-server-samples = 500
+fltrust-server-epochs = 1
 
 # Attack-specific params (active based on attacker-type):
 #   noise:       attacker-noise-scale
