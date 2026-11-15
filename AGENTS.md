@@ -1,5 +1,51 @@
 # quickstart-pytorch — Agent Guide
 
+## ▶ CURRENT STATE & RESUME INSTRUCTIONS (updated 2026-11-16)
+
+> Latest commit: `926f569` — "refactor: pluggable defenses + seed control + lock ResNet-18 baseline"
+
+**Correct server path** — the repo lives at **`/home2/julian/test/fl-watermark-poisoning-detection`**
+(as used by `pyproject.toml` `results-dir` and every `utility scripts/*.sh`). The
+"Project location" line below (quickstart-pytorch) is stale — ignore it.
+
+### Locked baseline config (freeze for all new experiments)
+- **Model/dataset:** ResNet-18 (`model-name="resnet18"`), CIFAR-10, 10 classes
+- **Watermark:** Uchida 128-bit, `watermark-lambda=0.01`, layer `backbone.fc.weight`
+- **Pretraining:** 5000 server samples, `pretrain-epochs=50`, cosine LR (`lr-scheduler="cosine"`)
+- **Defense:** dynamic MAD `median + α·MAD`, `mad-alpha=4.0`
+- **Seeds:** 3 per run via `seed={0,1,2}` (default 42)
+- 50 FL rounds, `batch-size=64`, early stopping disabled
+
+### Pluggable defenses (the infrastructure refactor)
+`defense-method` routes aggregation through **`pytorchexample/defenses.py`**
+(pure NumPy, no Flower/torch — unit-testable):
+`none` | `mad` (default) | `fixed` | `fltrust` | `krum` | `trimmed-mean` | `median`
+
+- `none` = plain FedAvg (fixes the old bug where `none` silently ran MAD).
+- `fltrust` trains the server on `fltrust-server-samples` (default 500) root samples each round.
+- `krum-m` / `trim-ratio` auto-derive from `attacker-fraction` unless set explicitly.
+- `watermarked_strategy.py` now extracts client weights/BER/`num-examples` and calls `run_defense`; it snapshots the global model each round and computes the FLTrust server update via a `server_update_fn` closure from `server_app.py`.
+
+### Seed control
+A single `seed` key drives dataset shuffle, Dirichlet partitioning, train/test split, and the watermark projection key (threaded through `task.py`, `watermark.py`, `client_app.py`, `server_app.py`).
+
+### Bugs fixed in this refactor
+1. `defense-method="none"` fell through to MAD (CIFAR-100 "baselines" were actually defended).
+2. `watermark-layer` was VGG-16's `classifier.6.weight` (crashes ResNet-18) — now `backbone.fc.weight`.
+3. `client_app.evaluate()` ignored `partition-type`/`partition-alpha` (non-IID eval loaded IID shards).
+
+### Local unit tests
+`PYTHONPATH=. python "utility scripts/test_defenses.py"` — 9 tests, NumPy only.
+
+### Next steps (the 4 pillars — target venue Euro S&P)
+1. Smoke-test one `none` and one `mad` run on the server before any sweep.
+2. **Pillar A:** sweep `{none, mad, krum, trimmed-mean, median, fltrust}` × `sign_flip` (scale 2 & 5) × 3 seeds + a `noise` sanity row.
+3. **Pillar B:** adaptive attacker (freeze watermarked FC layer) + multi-layer embedding.
+4. **Pillar C:** ALIE + trigger-based backdoor (BadNets/DBA + model replacement).
+5. **Pillar D:** Dirichlet α∈{0.1,0.5,1.0} × MAD; attacker fraction 10–45%; 50–100 clients; CIFAR-100.
+
+---
+
 ## Project location
 Run from **local NVMe**: `/home2/julian/test/quickstart-pytorch/`  
 Dataset cache on local disk: `/home2/julian/.cache/huggingface/datasets/`
