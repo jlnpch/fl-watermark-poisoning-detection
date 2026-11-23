@@ -1,6 +1,6 @@
 # quickstart-pytorch — Agent Guide
 
-## ▶ CURRENT STATE & RESUME INSTRUCTIONS (updated 2026-11-16)
+## ▶ CURRENT STATE & RESUME INSTRUCTIONS (updated 2026-11-23)
 
 > Latest commit: `926f569` — "refactor: pluggable defenses + seed control + lock ResNet-18 baseline"
 
@@ -37,12 +37,97 @@ A single `seed` key drives dataset shuffle, Dirichlet partitioning, train/test s
 ### Local unit tests
 `PYTHONPATH=. python "utility scripts/test_defenses.py"` — 9 tests, NumPy only.
 
-### Next steps (the 4 pillars — target venue Euro S&P)
-1. Smoke-test one `none` and one `mad` run on the server before any sweep.
-2. **Pillar A:** sweep `{none, mad, krum, trimmed-mean, median, fltrust}` × `sign_flip` (scale 2 & 5) × 3 seeds + a `noise` sanity row.
-3. **Pillar B:** adaptive attacker (freeze watermarked FC layer) + multi-layer embedding.
-4. **Pillar C:** ALIE + trigger-based backdoor (BadNets/DBA + model replacement).
-5. **Pillar D:** Dirichlet α∈{0.1,0.5,1.0} × MAD; attacker fraction 10–45%; 50–100 clients; CIFAR-100.
+### Pillar status (2026-11-23)
+- ✅ **Pillar A** — done (6 defenses × 4 attacks × 3 seeds, ResNet-18).
+- ✅ **Pillar B** — done (freeze-FC evasion → multi-layer fix → escalation → K-scaling → SOTA complementarity).
+- 🔄 **Pillar C** — BadNets backdoor (stealthy + model-replacement), running.
+- ⬜ **Pillar D** — Dirichlet α sweep (not started).
+
+### New config keys (since `926f569`)
+`frozen-layers`, `watermark-layers`, `badnets-target`, `badnets-trigger-size`,
+`badnets-trigger-value`, `badnets-trigger-pos`, `badnets-poison-frac`, `badnets-scale`.
+New attack types: `freeze_fc` (freeze watermarked layer, sign-flip rest) and `badnets`
+(trigger backdoor). Multi-layer Uchida watermark (aggregate BER = max across layers;
+per-layer BERs logged to `train.csv` via a JSON `ber_by_layer` column).
+
+---
+
+## Pillar A — ResNet-18 vs Byzantine-robust SOTA (final acc round 50, 3 seeds)
+
+| defense | clean | sign_flip s2 | sign_flip s5 | noise σ=1 |
+|---|---|---|---|---|
+| none | 0.697 ± 0.003 | 0.410 ± 0.002 | 0.325 ± 0.018 | 0.133 ± 0.017 |
+| mad | 0.702 ± 0.011 | 0.645 ± 0.043 | 0.676 ± 0.024 | 0.695 ± 0.009 |
+| fltrust | 0.681 ± 0.010 | 0.675 ± 0.002 | 0.681 ± 0.003 | 0.675 ± 0.011 |
+| krum | 0.688 ± 0.002 | 0.685 ± 0.005 | 0.680 ± 0.004 | 0.682 ± 0.009 |
+| trimmed-mean | 0.699 ± 0.003 | 0.667 ± 0.006 | 0.661 ± 0.002 | 0.695 ± 0.006 |
+| median | 0.703 ± 0.004 | 0.667 ± 0.009 | 0.670 ± 0.013 | 0.696 ± 0.005 |
+
+Detection (excluded vs `is_attacker`): `mad` TPR/FPR — s2 0.807/0.018, s5 0.947/0.010,
+noise 1.000/0.019. `krum` TPR 1.000 / FPR 0.222 (structural). Clean-run FPR: mad 0.115,
+krum 0.200, others 0. Federated wall-clock (s): none/mad ~467, krum ~524, trimmed-mean ~526,
+fltrust ~545, median ~590.
+
+## Pillar B — Kerckhoffs-aware attacker & layer-locality
+
+**Part 1 (single-layer FC watermark + MAD, α=4, freeze-FC attack):**
+| scale | TPR | FPR | final acc |
+|---|---|---|---|
+| s2 | 0.020 | 0.076 | 0.395 ± 0.016 |
+| s5 | 0.007 | 0.030 | 0.320 ± 0.001 |
+
+Freeze the FC layer → attacker BER stays at the honest level → MAD evaded (TPR ≈ 0.01)
+while the model still collapses to the undefended floor.
+
+**Part 2 (multi-layer FC + `layer1.0.conv2` watermark, MAD α=4, freeze-FC attack):**
+| scale | TPR | FPR | att-FC/hon-FC | att-conv/hon-conv | final acc |
+|---|---|---|---|---|---|
+| s2 | 0.860 ± 0.087 | 0.027 | 0.018/0.021 | 0.201/0.100 | 0.655 ± 0.059 |
+| s5 | 0.940 ± 0.040 | 0.017 | 0.028/0.032 | 0.325/0.132 | 0.670 ± 0.026 |
+
+Attacker's FC BER stays frozen-low but its sign-flipped conv BER spikes → detection restored
+(TPR 0.02 → 0.86/0.94), accuracy recovered. Layer chosen empirically (Step-1): `layer1.0.conv2`
+(18.9 MB P) beats `layer2.1`/`layer3.0` on separation AND memory; honest conv BER erosion grows
+with depth (l1 0.17 / l2 0.19 / l3 0.36 vs FC 0.03).
+
+**Escalation (freeze FC + the watermarked conv layer):** TPR 0.020/0.020, acc 0.401/0.318
+(s2/s5) — evaded again, because 2 watermarked layers is too little coverage.
+
+**K-scaling coverage curve (escalation, freeze all K watermarked layers, s2, MAD):**
+
+| K (params) | 1 (5K) | 2 (42K) | 3 (78K) | 4 (226K) | 5 (373K) |
+|---|---|---|---|---|---|
+| final acc | 0.395 | 0.401 | 0.391 | 0.393 | 0.393 |
+| honest max-BER | 0.088 | 0.230 | 0.210 | 0.352 | 0.321 |
+
+Coverage payoff is **flat** (acc stays ~0.39 for all K; freezing 373K params still leaves
+~97% of ResNet-18 poisonable) while erosion cost **rises** (honest BER 0.09 → 0.35). Per-layer
+coverage does not scale.
+
+**SOTA complementarity (freeze-FC attack → final acc, 3 seeds):**
+
+| defense | s2 | s5 |
+|---|---|---|
+| none | 0.403 ± 0.007 | 0.319 ± 0.005 |
+| mad | 0.395 ± 0.016 | 0.320 ± 0.001 |
+| krum | 0.689 ± 0.002 | 0.684 ± 0.005 |
+| fltrust | 0.678 ± 0.004 | 0.674 ± 0.006 |
+| trimmed-mean | 0.665 ± 0.005 | 0.662 ± 0.005 |
+| median | 0.675 ± 0.007 | 0.674 ± 0.002 |
+
+`mad` collapses (evaded) while all distance/coordinate baselines hold at clean ~0.68. krum
+TPR 1.000 / FPR 0.222. **Central thesis:** the watermark catches what distance methods miss
+(Pillar C) and vice-versa (Pillar B).
+
+## Pillar C — BadNets trigger backdoor (running)
+
+Attack: 4×4 white corner patch (`badnets-trigger-*`) on 50% of attacker images → target 0.
+Variants: stealthy (`badnets-scale=1`) and model-replacement (`badnets-scale=10`). Defenses:
+`none`, `mad`, `krum`, `fltrust`, 3 seeds. Trigger ASR logged as `server_asr`.
+
+Interim (stealthy, seed 0): `none` → ASR 0.95 / acc 0.68 (backdoor injects, main task intact);
+`mad` → ASR 0.154 / acc 0.697, TPR 0.94, FPR 0.073, attacker BER 0.145 vs honest 0.029
+(backdoor perturbing the FC layer raises BER → MAD excludes → backdoor blocked).
 
 ---
 
