@@ -1,4 +1,5 @@
 import io
+import json
 import math
 import time
 from logging import INFO
@@ -108,6 +109,8 @@ class WatermarkedFedAvg(FedAvg):
         models = []
         num_examples = []
         ber_values = []
+        ber_mean_values = []
+        ber_by_layer_values = []
         pids = []
         train_losses = []
         for msg in valid:
@@ -117,6 +120,8 @@ class WatermarkedFedAvg(FedAvg):
             num_examples.append(float(metrics.get(self.weighted_by_key, 1)))
             ber = metrics.get("watermark_ber", None)
             ber_values.append(float(ber) if ber is not None else float("nan"))
+            ber_mean_values.append(metrics.get("watermark_ber_mean", None))
+            ber_by_layer_values.append(metrics.get("ber_by_layer", None))
             pids.append(int(metrics.get("partition_id", -1)))
             train_losses.append(metrics.get("train_loss", None))
 
@@ -143,7 +148,10 @@ class WatermarkedFedAvg(FedAvg):
             is_attacker = attacker_flags[i]
             tag = " (attacker)" if is_attacker else ""
             if not np.isnan(ber):
-                log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s", pids[i], ber, tag)
+                extra_log = ""
+                if ber_by_layer_values[i]:
+                    extra_log = " by_layer=%s" % ber_by_layer_values[i]
+                log(INFO, "  └─ Partition %d: watermark_ber = %.4f%s%s", pids[i], ber, tag, extra_log)
             if is_excluded:
                 excluded_count += 1
                 if is_attacker:
@@ -163,6 +171,7 @@ class WatermarkedFedAvg(FedAvg):
                 watermark_ber=None if np.isnan(ber) else ber,
                 is_attacker=is_attacker,
                 excluded=is_excluded,
+                ber_by_layer=json.dumps(ber_by_layer_values[i]) if ber_by_layer_values[i] is not None else None,
             )
 
         extra = outcome.extra
@@ -204,6 +213,8 @@ class WatermarkedFedAvg(FedAvg):
                 if key == self.weighted_by_key:
                     continue
                 if isinstance(value, list):
+                    continue
+                if isinstance(value, str):
                     continue
                 if key not in metrics:
                     metrics[key] = value * w

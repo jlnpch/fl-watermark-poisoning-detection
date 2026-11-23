@@ -10,7 +10,7 @@ from flwr.serverapp import Grid, ServerApp
 
 from pytorchexample.metrics import MetricsSaver
 from pytorchexample.run_registry import log_run
-from pytorchexample.task import create_model, compute_asr, compute_server_update, load_centralized_dataset, load_server_pretrain_data
+from pytorchexample.task import create_model, compute_asr, compute_trigger_asr, compute_server_update, load_centralized_dataset, load_server_pretrain_data
 from pytorchexample.task import pretrain_with_watermark as server_pretrain
 from pytorchexample.task import test
 import pytorchexample.task as task
@@ -150,6 +150,15 @@ def main(grid: Grid, context: Context) -> None:
             asr = compute_asr(model, test_dataloader, source, target, device)
             result["asr"] = asr
             log(INFO, "ASR (source=%d→target=%d): %.4f", source, target, asr)
+
+        if cfg.get("attacker-type") == "badnets":
+            target = cfg.get("badnets-target", 0)
+            size = cfg.get("badnets-trigger-size", 4)
+            value = cfg.get("badnets-trigger-value", 1.0)
+            pos = cfg.get("badnets-trigger-pos", "bottom-right")
+            asr = compute_trigger_asr(model, test_dataloader, target, device, size=size, value=value, pos=pos)
+            result["asr"] = asr
+            log(INFO, "Trigger ASR (target=%d): %.4f", target, asr)
 
         return MetricRecord(result)
 

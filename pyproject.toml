@@ -59,6 +59,9 @@ watermark-message = "uchida"
 # 128-bit default: redundant bits flatten run-to-run variance of extracted BER
 watermark-num-bits = 128
 watermark-layer = "backbone.fc.weight"  # ResNet-18 FC layer (VGG-16: "classifier.6.weight")
+# Multi-layer embedding (Pillar B Part 2): comma-separated parameter names. Empty
+# -> single-layer (watermark-layer). Aggregate BER = max across layers.
+watermark-layers = ""
 watermark-lambda = 0.01
 
 # Server pretraining — absolute sample count from CIFAR-10 training set (50k total)
@@ -115,3 +118,22 @@ sign-flip-scale = 1.0
 label-flip-source = 9
 label-flip-target = 2
 label-flip-scale = 1.0
+
+# Pillar C — BadNets trigger backdoor.
+#   badnets-target       : relabeled target class
+#   badnets-trigger-size : square trigger side length (pixels)
+#   badnets-trigger-value: trigger pixel value in normalized [-1,1] space (1.0 = white)
+#   badnets-trigger-pos  : "bottom-right" | "top-left" | "center"
+#   badnets-poison-frac  : fraction of attacker images poisoned
+#   badnets-scale        : residual scaling (1.0 = stealthy, ~10 = model replacement)
+badnets-target = 0
+badnets-trigger-size = 4
+badnets-trigger-value = 1.0
+badnets-trigger-pos = "bottom-right"
+badnets-poison-frac = 0.5
+badnets-scale = 1.0
+
+# Pillar B — Kerckhoffs-aware freeze-FC attacker. Comma-separated parameter
+# names kept at their initial (watermarked) state; every other layer is
+# sign-flipped. Empty -> freeze the single watermark-layer.
+frozen-layers = ""

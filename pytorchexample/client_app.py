@@ -48,7 +48,7 @@ def train(msg: Message, context: Context):
     trainloader = attack.poison_data(trainloader, partition_id, is_attacker)
 
     # Save initial global model state before training (for model-poisoning attacks)
-    if is_attacker and attack.type in ("noise", "sign_flip", "label_flip"):
+    if is_attacker and attack.type in ("noise", "sign_flip", "label_flip", "freeze_fc", "badnets"):
         initial_state = {k: v.clone() for k, v in model.state_dict().items()}
     else:
         initial_state = None
@@ -64,12 +64,17 @@ def train(msg: Message, context: Context):
 
     # Compute watermark BER after local training
     watermark = create_watermark(cfg)
-    ber = watermark.compute_ber(model)
+    ber = watermark.compute_ber(model)  # aggregate (max across layers)
+    ber_mean = watermark.compute_ber_mean(model)
+    # Per-layer BER as a list of floats, ordered by watermark.layer_names (sorted).
+    ber_by_layer = list(watermark.compute_ber_by_layer(model).values())
 
     model_record = ArrayRecord(model.state_dict())
     metrics = {
         "train_loss": train_loss,
         "watermark_ber": ber,
+        "watermark_ber_mean": ber_mean,
+        "ber_by_layer": ber_by_layer,
         "partition_id": partition_id,
         "num-examples": len(trainloader.dataset),
     }

@@ -243,6 +243,26 @@ def compute_asr(net, testloader, source_class, target_class, device):
     return success / total if total > 0 else 0.0
 
 
+def compute_trigger_asr(net, testloader, target_class, device, size=4, value=1.0, pos="bottom-right"):
+    """Fraction of trigger-applied test images predicted as the target class (BadNets ASR)."""
+    from pytorchexample.attack import apply_trigger
+
+    net.to(device)
+    net.eval()
+    total = 0
+    success = 0
+    with torch.no_grad():
+        for batch in testloader:
+            images = batch["img"].to(device)
+            images = apply_trigger(images, size=size, value=value, pos=pos)
+            with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                outputs = net(images)
+            preds = outputs.argmax(dim=1)
+            success += (preds == target_class).sum().item()
+            total += images.size(0)
+    return success / total if total > 0 else 0.0
+
+
 def pretrain_with_watermark(net, trainloader, watermark, epochs, lr, device, lambda_reg=0.01, weight_decay=0.0, lr_scheduler="none", lr_min=0.0):
     """Pretrain the model with task loss + watermark regularization.
 

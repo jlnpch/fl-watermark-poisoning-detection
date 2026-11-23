@@ -39,7 +39,7 @@ class MetricsSaver:
             "server_asr": asr,
         })
 
-    def add_train(self, round_num, partition_id, train_loss, watermark_ber, is_attacker, excluded):
+    def add_train(self, round_num, partition_id, train_loss, watermark_ber, is_attacker, excluded, ber_by_layer=None):
         self.train_rows.append({
             "round": round_num,
             "partition_id": partition_id,
@@ -47,6 +47,7 @@ class MetricsSaver:
             "watermark_ber": watermark_ber,
             "is_attacker": int(is_attacker),
             "excluded": int(excluded),
+            "ber_by_layer": ber_by_layer,
         })
 
     def add_eval(self, round_num, partition_id, eval_acc, eval_loss):
@@ -95,7 +96,7 @@ class MetricsSaver:
         if self.train_rows:
             paths["train"] = self._write_csv(
                 f"run_{rid}_train.csv",
-                ["round", "partition_id", "train_loss", "watermark_ber", "is_attacker", "excluded"],
+                ["round", "partition_id", "train_loss", "watermark_ber", "is_attacker", "excluded", "ber_by_layer"],
                 self.train_rows,
             )
         if self.eval_rows:
@@ -107,7 +108,7 @@ class MetricsSaver:
         if self.pretrain_rows:
             paths["pretrain"] = self._write_csv(
                 f"run_{rid}_pretrain.csv",
-                ["epoch", "task_loss", "watermark_loss", "total_loss", "watermark_ber"],
+                ["epoch", "task_loss", "watermark_loss", "total_loss", "watermark_ber", "lr"],
                 self.pretrain_rows,
             )
         return paths
