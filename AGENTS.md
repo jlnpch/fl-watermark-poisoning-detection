@@ -37,18 +37,20 @@ A single `seed` key drives dataset shuffle, Dirichlet partitioning, train/test s
 ### Local unit tests
 `PYTHONPATH=. python "utility scripts/test_defenses.py"` — 9 tests, NumPy only.
 
-### Pillar status (2026-11-23)
+### Pillar status (2026-11-25)
 - ✅ **Pillar A** — done (6 defenses × 4 attacks × 3 seeds, ResNet-18).
 - ✅ **Pillar B** — done (freeze-FC evasion → multi-layer fix → escalation → K-scaling → SOTA complementarity).
-- 🔄 **Pillar C** — BadNets backdoor (stealthy + model-replacement), running.
-- ⬜ **Pillar D** — Dirichlet α sweep (not started).
+- ✅ **Pillar C** — done (BadNets stealthy + model-replacement + constrain-and-scale).
+- ✅ **Pillar D** — done (non-IID Dirichlet α sweep + attacker-fraction breakdown).
 
 ### New config keys (since `926f569`)
 `frozen-layers`, `watermark-layers`, `badnets-target`, `badnets-trigger-size`,
-`badnets-trigger-value`, `badnets-trigger-pos`, `badnets-poison-frac`, `badnets-scale`.
+`badnets-trigger-value`, `badnets-trigger-pos`, `badnets-poison-frac`, `badnets-scale`,
+`badnets-constrain`.
 New attack types: `freeze_fc` (freeze watermarked layer, sign-flip rest) and `badnets`
-(trigger backdoor). Multi-layer Uchida watermark (aggregate BER = max across layers;
-per-layer BERs logged to `train.csv` via a JSON `ber_by_layer` column).
+(trigger backdoor; constrain-and-scale via `badnets-constrain`). Multi-layer Uchida
+watermark (aggregate BER = max across layers; per-layer BERs logged to `train.csv` via a
+JSON `ber_by_layer` column).
 
 ---
 
@@ -119,15 +121,65 @@ coverage does not scale.
 TPR 1.000 / FPR 0.222. **Central thesis:** the watermark catches what distance methods miss
 (Pillar C) and vice-versa (Pillar B).
 
-## Pillar C — BadNets trigger backdoor (running)
+## Pillar C — BadNets trigger backdoor (final)
 
-Attack: 4×4 white corner patch (`badnets-trigger-*`) on 50% of attacker images → target 0.
-Variants: stealthy (`badnets-scale=1`) and model-replacement (`badnets-scale=10`). Defenses:
-`none`, `mad`, `krum`, `fltrust`, 3 seeds. Trigger ASR logged as `server_asr`.
+Attack: 4×4 white corner patch (`badnets-trigger-*`) on a fraction of attacker images → target 0.
+Defenses: `none`, `mad`, `krum`, `fltrust`, 3 seeds. Trigger ASR logged as `server_asr`.
 
-Interim (stealthy, seed 0): `none` → ASR 0.95 / acc 0.68 (backdoor injects, main task intact);
-`mad` → ASR 0.154 / acc 0.697, TPR 0.94, FPR 0.073, attacker BER 0.145 vs honest 0.029
-(backdoor perturbing the FC layer raises BER → MAD excludes → backdoor blocked).
+**Stealthy (`badnets-scale=1`, poison 0.5):**
+
+| defense | trigger ASR | main acc | TPR | FPR |
+|---|---|---|---|---|
+| none | 0.961 ± 0.001 | 0.664 | — | — |
+| mad | 0.237 ± 0.097 | 0.696 | 0.913 | 0.059 |
+| krum | 0.096 ± 0.001 | 0.688 | — | — |
+| fltrust | 0.589 ± 0.018 | 0.675 | — | — |
+
+**Model-replacement (`badnets-scale=10`):**
+
+| defense | trigger ASR | main acc | TPR | FPR |
+|---|---|---|---|---|
+| none | 0.974 ± 0.001 | 0.707 | — | — |
+| mad | 0.095 ± 0.004 | 0.703 | 1.000 | 0.024 |
+| krum | 0.093 ± 0.004 | 0.689 | — | — |
+| fltrust | 0.572 ± 0.093 | 0.672 | — | — |
+
+Backdoor injects near-perfectly under `none`; `mad` catches both (TPR 0.91/1.00, ASR held to
+0.24/0.09). `krum` matches the watermark (ASR ~0.09) — the expected mirror-image (distance
+methods *miss* the backdoor) is **not** clean, because the stealthy update is still
+*wrong-direction* (the backdoor objective deviates from the honest main-task direction), so
+krum rejects it as an outlier. `fltrust` is the weak spot (ASR 0.59/0.57, only partial).
+
+**Constrain-and-scale (`badnets-scale=10`, `badnets-constrain` clips L2 norm; pilot seed 0):**
+`pfrac=0.1` is a dead zone — backdoor barely injects (none ASR 0.16–0.32) AND the FC
+perturbation is too faint for MAD (att-BER 0.015–0.025 ≈ honest, TPR 0.02–0.22). `pfrac=0.3`
+is the candidate sweet spot; full 3-seed matrix not yet run.
+
+## Pillar D — non-IID & attacker-fraction validation (final, MAD α=4)
+
+**Non-IID (Dirichlet):**
+
+| α | setting | final acc | TPR | FPR | att-BER | hon-BER |
+|---|---|---|---|---|---|---|
+| 0.1 | clean | 0.618 ± 0.000 | — | — | — | 0.161 ± 0.030 |
+| 0.1 | s2 | 0.265 ± 0.279 | 0.347 ± 0.397 | 0.009 | 0.419 | 0.349 ± 0.122 |
+| 0.5 | clean | 0.668 ± 0.008 | — | — | — | 0.067 ± 0.014 |
+| 0.5 | s2 | 0.640 ± 0.017 | 0.873 ± 0.061 | 0.048 | 0.188 | 0.072 |
+| 1.0 | clean | 0.687 ± 0.006 | — | — | — | 0.045 ± 0.009 |
+| 1.0 | s2 | 0.645 ± 0.039 | 0.847 ± 0.090 | 0.049 | 0.124 | 0.049 |
+
+**Attacker fraction (sign-flip s2, IID):**
+
+| frac | final acc | TPR | FPR |
+|---|---|---|---|
+| 0.1* (Pillar A) | 0.645 | 0.807 | 0.018 |
+| 0.3 | 0.536 ± 0.021 | 0.818 ± 0.032 | 0.010 |
+| 0.45 | 0.099 ± 0.009 | 0.075 ± 0.062 | 0.003 |
+
+MAD holds under moderate non-IID (α≥0.5) but degrades under strong non-IID (α=0.1): honest
+BER drift widens to 0.16/0.35 and swallows the attacker's 0.42 → TPR ~0.35 (high seed
+variance), model collapses. Breakdown point sits between 30% and 45% attackers (TPR 0.82 →
+0.08); non-IID itself costs baseline accuracy (0.62–0.69 vs 0.70 IID).
 
 ---
 
