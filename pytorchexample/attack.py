@@ -230,11 +230,25 @@ class BadNetsAttack(Attack):
 
     ``poison_data`` overlays a fixed trigger patch on ``badnets-poison-frac`` of the
     attacker's training images and relabels them to ``badnets-target``. ``poison_model``
-    optionally amplifies the update residual by ``badnets-scale`` (model replacement):
-    ``1.0`` = stealthy (normal-magnitude update), ``>1`` = the aggregate ≈ attacker model.
+    amplifies the update residual by ``badnets-scale`` (model replacement: ``1.0`` =
+    stealthy, ``~10`` = aggregate ≈ attacker model).
+
+    Constrain-and-scale (Bagdasaryan et al.): when ``badnets-constrain > 0``, the scaled
+    update's L2 norm is clipped to ``badnets-constrain * ||raw_update||`` — i.e. the sent
+    update is projected onto the benign-magnitude ball after scaling, so it keeps the
+    backdoor *direction* but looks benign in magnitude. Effective scale = ``min(scale,
+    constrain)``.
     """
 
     type = "badnets"
+
+    @staticmethod
+    def _l2_norm(state, initial):
+        s = 0.0
+        for k, v in state.items():
+            if v.dtype.is_floating_point:
+                s += float((v - initial[k]).pow(2).sum())
+        return s ** 0.5
 
     def poison_data(self, trainloader, partition_id, is_attacker):
         if not is_attacker:
@@ -259,13 +273,28 @@ class BadNetsAttack(Attack):
         if not is_attacker:
             return model
         scale = self.config.get("badnets-scale", 1.0)
-        if scale == 1.0:
+        constrain = self.config.get("badnets-constrain", 0.0)
+        if scale == 1.0 and constrain <= 0:
             return model
         state_dict = model.state_dict()
         with torch.no_grad():
-            for key in state_dict:
-                residual = state_dict[key] - initial_state[key]
-                state_dict[key] = initial_state[key] + residual * scale
+            if constrain > 0:
+                raw_norm = self._l2_norm(state_dict, initial_state)
+                for key in state_dict:
+                    residual = state_dict[key] - initial_state[key]
+                    state_dict[key] = initial_state[key] + residual * scale
+                scaled_norm = self._l2_norm(state_dict, initial_state)
+                budget = constrain * raw_norm
+                if scaled_norm > budget and scaled_norm > 0:
+                    factor = budget / scaled_norm
+                    for key in state_dict:
+                        if state_dict[key].dtype.is_floating_point:
+                            residual = state_dict[key] - initial_state[key]
+                            state_dict[key] = initial_state[key] + residual * factor
+            else:
+                for key in state_dict:
+                    residual = state_dict[key] - initial_state[key]
+                    state_dict[key] = initial_state[key] + residual * scale
         model.load_state_dict(state_dict)
         return model
 

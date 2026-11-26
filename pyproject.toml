@@ -132,6 +132,9 @@ badnets-trigger-value = 1.0
 badnets-trigger-pos = "bottom-right"
 badnets-poison-frac = 0.5
 badnets-scale = 1.0
+# Constrain-and-scale: when > 0, clip the scaled update's L2 norm to this multiple
+# of the raw update norm (benign-magnitude ball). 0 = disabled.
+badnets-constrain = 0.0
 
 # Pillar B — Kerckhoffs-aware freeze-FC attacker. Comma-separated parameter
 # names kept at their initial (watermarked) state; every other layer is

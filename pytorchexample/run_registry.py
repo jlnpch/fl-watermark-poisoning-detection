@@ -55,6 +55,7 @@ def log_run(output_dir: str, run_id: str, config: dict) -> None:
         "badnets-trigger-pos",
         "badnets-poison-frac",
         "badnets-scale",
+        "badnets-constrain",
         "model-name",
         "dataset-name",
     ):
